@@ -4,6 +4,7 @@ mod db;
 mod backend;
 mod app;
 mod user;
+mod group;
 
 use app::MyApp;
 

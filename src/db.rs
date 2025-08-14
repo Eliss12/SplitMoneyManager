@@ -116,3 +116,22 @@ pub fn login_user(conn: &Connection, email: &str, password: &str) -> std::result
         Err("Не е намерен потребител".to_string())
     }
 }
+
+pub fn create_group(conn: &Connection, groupname: &str, owner_id: i32, members: &[i32]) -> std::result::Result<(), String> {
+    conn.execute(
+        "INSERT INTO groups (groupname, owner_id) VALUES (?1, ?2)",
+        params![groupname, owner_id],
+    )
+        .map_err(|e| e.to_string())?;
+
+    let group_id = conn.last_insert_rowid();
+
+    for &user_id in members {
+        conn.execute(
+            "INSERT INTO group_members (group_id, user_id) VALUES (?1, ?2)",
+            (group_id, user_id),
+        ).map_err(|e| e.to_string())?;
+    }
+
+    Ok(())
+}

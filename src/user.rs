@@ -21,7 +21,7 @@ impl User {
         }
     }
 
-    // Getter-и
+
     pub fn id(&self) -> i32 {
         self.id
     }
