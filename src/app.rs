@@ -1,6 +1,6 @@
 use std::sync::mpsc::{Sender, Receiver};
 use crate::backend::{start_backend, ServerCommand, ServerResponse};
-use crate::models::User;
+use crate::user::User;
 use eframe::{egui, App, Frame};
 
 #[derive(Clone)]

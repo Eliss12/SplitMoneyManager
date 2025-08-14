@@ -1,9 +1,9 @@
 use eframe::NativeOptions;
 
-mod models;
 mod db;
 mod backend;
 mod app;
+mod user;
 
 use app::MyApp;
 

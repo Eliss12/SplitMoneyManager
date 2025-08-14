@@ -4,7 +4,7 @@ use std::thread;
 
 
 use crate::db::{init_db, register_user, login_user};
-use crate::models::User;
+use crate::user::User;
 
 #[derive(Debug)]
 pub enum ServerCommand {

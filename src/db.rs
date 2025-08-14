@@ -3,7 +3,7 @@ use argon2::{Argon2, PasswordHasher};
 use password_hash::{SaltString, PasswordHasher as _, PasswordHash, PasswordVerifier};
 use rand_core::OsRng;
 use regex::Regex;
-use crate::models::{User};
+use crate::user::{User};
 
 pub fn init_db() -> Result<Connection> {
     let conn = Connection::open("database.db")?;
