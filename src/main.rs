@@ -1,6 +1,15 @@
+use eframe::NativeOptions;
+
 mod models;
 mod db;
+mod backend;
+mod app;
 
-fn main() {
-    println!("Hello, world!");
+use app::MyApp;
+
+
+fn main() -> eframe::Result {
+
+    let options = NativeOptions::default();
+    eframe::run_native("SplitMoney", options, Box::new(|_cc| Ok(Box::new(MyApp::default()))))
 }
