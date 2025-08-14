@@ -10,14 +10,14 @@ pub struct User {
 
 impl User {
 
-    pub fn new(id: i32, username: String, email: String, password_hash: String) -> Self {
+    pub fn new(id: i32, username: String, email: String, password_hash: String, on_time_payments: i32, loyal_payer: bool) -> Self {
         Self {
             id,
             username,
             email,
             password_hash,
-            on_time_payments: 0,
-            loyal_payer: false,
+            on_time_payments,
+            loyal_payer,
         }
     }
 
