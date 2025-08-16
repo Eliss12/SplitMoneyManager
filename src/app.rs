@@ -116,8 +116,8 @@ impl MyApp {
 
             if ui.button("Вход").clicked() {
                 let _ = self.tx_cmd.send(ServerCommand::Login {
-                    email: self.login_email.clone(),
-                    password: self.login_password.clone(),
+                    email: std::mem::take(&mut self.login_email),
+                    password: std::mem::take(&mut self.login_password),
                 });
             }
 
@@ -155,10 +155,11 @@ impl MyApp {
             if ui.button("Създай акаунт").clicked() {
 
                 let _ = self.tx_cmd.send(ServerCommand::Register {
-                    username: self.reg_username.clone(),
-                    email: self.reg_email.clone(),
-                    password: self.reg_password.clone(),
+                    username: std::mem::take(&mut self.reg_username),
+                    email: std::mem::take(&mut self.reg_email),
+                    password: std::mem::take(&mut self.reg_password),
                 });
+                self.loading = true;
 
             }
 
@@ -167,6 +168,11 @@ impl MyApp {
             }
 
             self.process_backend_responses(ctx);
+
+            if self.loading {
+                ui.separator();
+                ui.label("Моля изчакайте...");
+            }
 
             if let Some(msg) = &self.success_message {
                 ui.colored_label(egui::Color32::GREEN, msg);
