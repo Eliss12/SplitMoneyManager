@@ -243,7 +243,7 @@ impl MyApp {
                     ui.text_edit_singleline(&mut self.search_query);
                     if ui.button("Търси").clicked() {
                         let _ = self.tx_cmd.send(ServerCommand::SearchUsers {
-                            query: self.search_query.clone(),
+                            query: std::mem::take(&mut self.search_query),
                         });
                         self.loading = true;
                         self.process_backend_responses(ctx);
@@ -254,19 +254,29 @@ impl MyApp {
 
                 for user in &self.search_results {
                     let mut checked = self.selected_users.contains(&user.id());
-                    if ui
-                        .checkbox(&mut checked, format!("{} ({})", user.username(), user.email()))
-                        .changed()
-                    {
-                        if checked {
-                            if !self.selected_users.contains(&user.id()) {
-                                self.selected_users.push(user.id());
+
+                    ui.horizontal(|ui| {
+                        // Checkbox за селекция
+                        if ui.checkbox(&mut checked, "").changed() {
+                            if checked {
+                                if !self.selected_users.contains(&user.id()) {
+                                    self.selected_users.push(user.id());
+                                }
+                            } else {
+                                self.selected_users.retain(|&id| id != user.id());
                             }
-                        } else {
-                            self.selected_users.retain(|&id| id != user.id());
                         }
-                    }
+
+                        // Показваме името и имейла
+                        ui.label(format!("{} ({})", user.username(), user.email()));
+
+                        // Ако е лоялен платец, добавяме значка
+                        if user.is_loyal_payer() {
+                            ui.colored_label(egui::Color32::GOLD, "⭐");
+                        }
+                    });
                 }
+
 
                 ui.separator();
 
