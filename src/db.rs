@@ -117,10 +117,10 @@ pub fn login_user(conn: &Connection, email: &str, password: &str) -> std::result
     }
 }
 
-pub fn create_group(conn: &Connection, groupname: &str, owner_id: i32, members: &[i32]) -> std::result::Result<(), String> {
+pub fn create_group(conn: &Connection, name: &str, owner_id: i32, members: &[i32]) -> std::result::Result<(), String> {
     conn.execute(
-        "INSERT INTO groups (groupname, owner_id) VALUES (?1, ?2)",
-        params![groupname, owner_id],
+        "INSERT INTO groups (name, owner_id) VALUES (?1, ?2)",
+        params![name, owner_id],
     )
         .map_err(|e| e.to_string())?;
 
@@ -134,4 +134,45 @@ pub fn create_group(conn: &Connection, groupname: &str, owner_id: i32, members: 
     }
 
     Ok(())
+}
+
+pub fn search_users(conn: &Connection, query: &str) -> std::result::Result<Vec<User>, String> {
+    let pattern = format!("%{}%", query);
+    let mut stmt = conn
+        .prepare("SELECT id, username, email, loyal_payer FROM users WHERE username LIKE ?1 OR email LIKE ?1")
+        .map_err(|e| e.to_string())?;
+
+    let users = stmt
+        .query_map([pattern], |row| {
+            Ok(User::from_loyal_payer (
+                row.get(0)?,
+                row.get(1)?,
+                row.get(2)?,
+                row.get(3)?,
+            ))
+        })
+        .map_err(|e| e.to_string())?
+        .collect::<std::result::Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+
+    Ok(users)
+}
+
+pub fn get_user_by_id(conn: &Connection, user_id: i32) -> std::result::Result<User, String> {
+    let mut stmt = conn
+        .prepare("SELECT id, username, email FROM users WHERE id = ?1")
+        .map_err(|e| e.to_string())?;
+
+    let mut rows = stmt.query(params![user_id]).map_err(|e| e.to_string())?;
+
+    if let Some(row) = rows.next().map_err(|e| e.to_string())? {
+        Ok(User::from_id (
+            row.get(0).unwrap(),
+            row.get(1).unwrap(),
+            row.get(2).unwrap(),
+
+        ))
+    } else {
+        Err("Не е намерен потребител.".to_string())
+    }
 }

@@ -21,6 +21,28 @@ impl User {
         }
     }
 
+    pub fn from_loyal_payer(id: i32, username: String, email: String, loyal_payer: bool) -> Self {
+        Self{
+            id,
+            username,
+            email,
+            password_hash: String::new(),
+            on_time_payments: 0,
+            loyal_payer
+        }
+    }
+
+    pub fn from_id(id: i32, username: String, email: String) -> Self {
+        Self{
+            id,
+            username,
+            email,
+            password_hash: String::new(),
+            on_time_payments: 0,
+            loyal_payer: false,
+        }
+    }
+
 
     pub fn id(&self) -> i32 {
         self.id

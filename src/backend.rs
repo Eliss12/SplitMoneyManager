@@ -3,7 +3,7 @@ use std::sync::mpsc;
 use std::thread;
 
 
-use crate::db::{init_db, register_user, login_user};
+use crate::db::{init_db, register_user, login_user, create_group, search_users, get_user_by_id};
 use crate::user::User;
 
 #[derive(Debug)]
@@ -17,6 +17,9 @@ pub enum ServerCommand {
         email: String,
         password: String,
     },
+    SearchUsers { query: String },
+    CreateGroup { name: String, owner_id: i32, members: Vec<i32> },
+    GetUser {owner_id: i32},
 
 }
 
@@ -25,6 +28,7 @@ pub enum ServerResponse {
     Ok(String),
     Err(String),
     User(User),
+    Users(Vec<User>),
 }
 
 pub fn start_backend() -> (Sender<ServerCommand>, Receiver<ServerResponse>) {
@@ -47,6 +51,24 @@ pub fn start_backend() -> (Sender<ServerCommand>, Receiver<ServerResponse>) {
                         Ok(user) => {
                             tx_resp.send(ServerResponse::User(user)).unwrap();
                         }
+                        Err(e) => tx_resp.send(ServerResponse::Err(e)).unwrap(),
+                    }
+                }
+                ServerCommand::SearchUsers { query } => {
+                    match search_users(&conn, &query) {
+                        Ok(users) => tx_resp.send(ServerResponse::Users(users)).unwrap(),
+                        Err(e) => tx_resp.send(ServerResponse::Err(e)).unwrap(),
+                    }
+                }
+                ServerCommand::CreateGroup { name, owner_id, members } => {
+                    match create_group(&conn, &name, owner_id, &members) {
+                        Ok(_) => tx_resp.send(ServerResponse::Ok("Групата е създадена успешно!".into())).unwrap(),
+                        Err(e) => tx_resp.send(ServerResponse::Err(e)).unwrap(),
+                    }
+                }
+                ServerCommand::GetUser { owner_id } => {
+                    match get_user_by_id(&conn, owner_id) {
+                        Ok(user) => tx_resp.send(ServerResponse::User(user)).unwrap(),
                         Err(e) => tx_resp.send(ServerResponse::Err(e)).unwrap(),
                     }
                 }
