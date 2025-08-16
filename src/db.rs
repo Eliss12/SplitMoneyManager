@@ -73,6 +73,18 @@ pub fn register_user(conn: &Connection, username: &str, email: &str, password: &
         return Err("Вече има регистриран потребител с този имейл.".to_string());
     }
 
+    let username_exists: bool = conn
+        .query_row(
+            "SELECT EXISTS(SELECT 1 FROM users WHERE username = ?1)",
+            params![username],
+            |row| row.get(0),
+        )
+        .unwrap_or(false);
+
+    if username_exists {
+        return Err("Вече има регистриран потребител с това потребителско име.".to_string());
+    }
+
     let salt = SaltString::generate(&mut OsRng);
     let argon2 = Argon2::default();
     let password_hash = argon2
