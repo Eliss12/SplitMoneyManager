@@ -267,10 +267,8 @@ impl MyApp {
                             }
                         }
 
-                        // Показваме името и имейла
                         ui.label(format!("{} ({})", user.username(), user.email()));
 
-                        // Ако е лоялен платец, добавяме значка
                         if user.is_loyal_payer() {
                             ui.colored_label(egui::Color32::GOLD, "⭐");
                         }
@@ -293,6 +291,7 @@ impl MyApp {
                         self.error_message = Some(
                             "Моля въведете име и изберете поне един член.".to_string(),
                         );
+                        self.error_time = Some(std::time::Instant::now());
                     }
                 }
 
