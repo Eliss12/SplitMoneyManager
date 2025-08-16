@@ -32,7 +32,9 @@ pub struct MyApp {
 
     loading: bool,
     success_message: Option<String>,
+    success_time: Option<std::time::Instant>,
     error_message: Option<String>,
+    error_time: Option<std::time::Instant>,
 }
 
 impl Default for MyApp {
@@ -54,7 +56,9 @@ impl Default for MyApp {
             selected_users: Vec::new(),
             loading: false,
             success_message: None,
+            success_time: None,
             error_message: None,
+            error_time: None,
         }
     }
 }
@@ -80,10 +84,12 @@ impl MyApp {
             match response {
                 ServerResponse::Ok(msg) => {
                     self.success_message = Some(msg);
+                    self.success_time = Some(std::time::Instant::now());
                     self.loading = false;
                 }
                 ServerResponse::Err(msg) => {
                     self.error_message = Some(msg);
+                    self.error_time = Some(std::time::Instant::now());
                     self.loading = false;
                 }
                 ServerResponse::User(user) => {
@@ -99,6 +105,34 @@ impl MyApp {
             ctx.request_repaint();
         }
 
+    }
+
+    fn update_messages(&mut self, ctx: &egui::Context) {
+
+        if let Some(start) = self.success_time {
+            if start.elapsed().as_secs() > 5 {
+                self.success_message = None;
+                self.success_time = None;
+            }
+        }
+
+        if let Some(start) = self.error_time {
+            if start.elapsed().as_secs() > 5 {
+                self.error_message = None;
+                self.error_time = None;
+            }
+        }
+
+        ctx.request_repaint();
+    }
+
+    fn show_messages(&self, ui: &mut egui::Ui) {
+        if let Some(msg) = &self.success_message {
+            ui.colored_label(egui::Color32::GREEN, msg);
+        }
+        if let Some(msg) = &self.error_message {
+            ui.colored_label(egui::Color32::RED, msg);
+        }
     }
 
     fn show_login(&mut self, ctx: &egui::Context) {
@@ -126,13 +160,8 @@ impl MyApp {
             }
 
             self.process_backend_responses(ctx);
-
-            if let Some(msg) = &self.success_message {
-                ui.colored_label(egui::Color32::GREEN, msg);
-            }
-            if let Some(msg) = &self.error_message {
-                ui.colored_label(egui::Color32::RED, msg);
-            }
+            self.update_messages(ctx);
+            self.show_messages(ui);
         });
     }
 
@@ -174,12 +203,8 @@ impl MyApp {
                 ui.label("Моля изчакайте...");
             }
 
-            if let Some(msg) = &self.success_message {
-                ui.colored_label(egui::Color32::GREEN, msg);
-            }
-            if let Some(msg) = &self.error_message {
-                ui.colored_label(egui::Color32::RED, msg);
-            }
+            self.update_messages(ctx);
+            self.show_messages(ui);
         });
     }
 
@@ -273,12 +298,8 @@ impl MyApp {
                 ui.label("Моля изчакайте...");
             }
 
-            if let Some(msg) = &self.error_message {
-                ui.colored_label(egui::Color32::RED, msg);
-            }
-            if let Some(msg) = &self.success_message {
-                ui.colored_label(egui::Color32::GREEN, msg);
-            }
+            self.update_messages(ctx);
+            self.show_messages(ui);
         });
     }
 }
