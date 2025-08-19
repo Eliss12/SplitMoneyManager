@@ -13,4 +13,8 @@ impl Group {
     pub fn groupname(&self) -> &str {
         &self.groupname
     }
+
+    pub fn id(&self) -> i32 {
+        self.id
+    }
 }

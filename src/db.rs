@@ -218,3 +218,23 @@ pub fn get_user_groups(conn: &Connection, user_id: i32) -> std::result::Result<V
 
     Ok(groups)
 }
+
+pub fn add_expenses(conn: &Connection, group_id: i32, payer_id: i32, amount: f32, description: &str, due_date: &str) -> std::result::Result<(), String> {
+    let re = Regex::new(r"^\d{4}-\d{2}-\d{2}$").unwrap();
+    if !re.is_match(due_date) {
+        return Err("Невалиден формат на дата. Използвайте YYYY-MM-DD.".to_string());
+    }
+
+    if amount < 0.0 {
+        return Err("Сумата трябва да е положително число.".to_string());
+    }
+
+    conn.execute(
+        "INSERT INTO expenses (group_id, payer_id, description, amount, due_date)
+         VALUES (?1, ?2, ?3, ?4, ?5)",
+        params![group_id, payer_id, description, amount, due_date],
+    )
+        .map_err(|e| format!("Грешка в базата данни: {}", e))?;
+
+    Ok(())
+}

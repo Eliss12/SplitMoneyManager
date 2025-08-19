@@ -11,6 +11,7 @@ pub enum Screen {
     MainApp(User),
     CreateGroup(User),
     MyGroups(i32),
+    AddExp(i32, i32),
 }
 
 pub struct MyApp {
@@ -31,6 +32,10 @@ pub struct MyApp {
     selected_users: Vec<i32>,
 
     my_groups: Vec<Group>,
+
+    exp_amount: f32,
+    exp_description: String,
+    exp_due_date: String,
 
     loading: bool,
     success_message: Option<String>,
@@ -57,6 +62,9 @@ impl Default for MyApp {
             search_results: Vec::new(),
             selected_users: Vec::new(),
             my_groups: Vec::new(),
+            exp_amount: 0.0,
+            exp_description: String::new(),
+            exp_due_date: String::new(),
             loading: false,
             success_message: None,
             success_time: None,
@@ -77,6 +85,7 @@ impl App for MyApp {
             Screen::Register => self.show_register(ctx),
             Screen::CreateGroup(user) => self.show_create_group(ctx, user.id()),
             Screen::MyGroups(user_id) => self.show_my_groups(ctx, user_id),
+            Screen::AddExp(user_id, group_id) => self.show_add_expenses(ctx, user_id, group_id),
         }
     }
 }
@@ -337,7 +346,7 @@ impl MyApp {
                     ui.horizontal(|ui| {
                         ui.label(format!("{}", group.groupname()));
                         if ui.button("Добави разход").clicked() {
-
+                            self.screen = Screen::AddExp(user_id, group.id());
                         }
                     });
 
@@ -362,6 +371,55 @@ impl MyApp {
 
         });
     }
+
+    fn show_add_expenses(&mut self, ctx: &egui::Context, user_id: i32, group_id: i32) {
+        egui::CentralPanel::default().show(ctx, |ui| {
+            ui.heading("Добавяне на разход");
+
+            let mut amount_str = self.exp_amount.to_string();
+            ui.label("Сума:");
+            ui.text_edit_singleline(&mut amount_str);
+            if let Ok(parsed) = amount_str.parse::<f32>() {
+                self.exp_amount = parsed;
+            }
+
+            ui.label("Описание:");
+            ui.text_edit_singleline(&mut self.exp_description);
+
+            ui.label("Крайна дата за изплащане:");
+            ui.text_edit_singleline(&mut self.exp_due_date);
+
+
+            if ui.button("Добави разход").clicked() {
+
+                let _ = self.tx_cmd.send(ServerCommand::AddExpenses {
+                    user_id,
+                    group_id,
+                    amount: std::mem::take(&mut self.exp_amount),
+                    description: std::mem::take(&mut self.exp_description),
+                    due_date: std::mem::take(&mut self.exp_due_date),
+                });
+                self.loading = true;
+
+            }
+
+            if ui.button("Назад").clicked() {
+                self.screen = Screen::MyGroups(user_id);
+            }
+
+            self.process_backend_responses(ctx);
+
+            if self.loading {
+                ui.separator();
+                ui.label("Моля изчакайте...");
+            }
+
+            self.update_messages(ctx);
+            self.show_messages(ui);
+        });
+    }
 }
+
+
 
 

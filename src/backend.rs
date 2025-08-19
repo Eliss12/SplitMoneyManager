@@ -3,7 +3,7 @@ use std::sync::mpsc;
 use std::thread;
 
 
-use crate::db::{init_db, register_user, login_user, create_group, search_users, get_user_by_id, get_user_groups};
+use crate::db::{init_db, register_user, login_user, create_group, search_users, get_user_by_id, get_user_groups, add_expenses};
 use crate::group::Group;
 use crate::user::User;
 
@@ -22,6 +22,7 @@ pub enum ServerCommand {
     CreateGroup { name: String, owner_id: i32, members: Vec<i32> },
     GetUser {owner_id: i32},
     ShowGroups {user_id: i32},
+    AddExpenses { user_id: i32, group_id: i32, amount: f32, description: String, due_date: String },
 }
 
 #[derive(Debug)]
@@ -77,6 +78,12 @@ pub fn start_backend() -> (Sender<ServerCommand>, Receiver<ServerResponse>) {
                 ServerCommand::ShowGroups { user_id } => {
                     match get_user_groups(&conn, user_id) {
                         Ok(groups) => tx_resp.send(ServerResponse::Groups(groups)).unwrap(),
+                        Err(e) => tx_resp.send(ServerResponse::Err(e)).unwrap(),
+                    }
+                }
+                ServerCommand::AddExpenses { user_id, group_id, amount, description, due_date } => {
+                    match add_expenses(&conn, user_id, group_id, amount, &description, &due_date) {
+                        Ok(_) => tx_resp.send(ServerResponse::Ok("Успешно добавихте разход!".into())).unwrap(),
                         Err(e) => tx_resp.send(ServerResponse::Err(e)).unwrap(),
                     }
                 }
