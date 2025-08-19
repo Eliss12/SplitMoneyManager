@@ -3,7 +3,8 @@ use std::sync::mpsc;
 use std::thread;
 
 
-use crate::db::{init_db, register_user, login_user, create_group, search_users, get_user_by_id};
+use crate::db::{init_db, register_user, login_user, create_group, search_users, get_user_by_id, get_user_groups};
+use crate::group::Group;
 use crate::user::User;
 
 #[derive(Debug)]
@@ -20,7 +21,7 @@ pub enum ServerCommand {
     SearchUsers { query: String },
     CreateGroup { name: String, owner_id: i32, members: Vec<i32> },
     GetUser {owner_id: i32},
-
+    ShowGroups {user_id: i32},
 }
 
 #[derive(Debug)]
@@ -29,6 +30,7 @@ pub enum ServerResponse {
     Err(String),
     User(User),
     Users(Vec<User>),
+    Groups(Vec<Group>),
 }
 
 pub fn start_backend() -> (Sender<ServerCommand>, Receiver<ServerResponse>) {
@@ -69,6 +71,12 @@ pub fn start_backend() -> (Sender<ServerCommand>, Receiver<ServerResponse>) {
                 ServerCommand::GetUser { owner_id } => {
                     match get_user_by_id(&conn, owner_id) {
                         Ok(user) => tx_resp.send(ServerResponse::User(user)).unwrap(),
+                        Err(e) => tx_resp.send(ServerResponse::Err(e)).unwrap(),
+                    }
+                }
+                ServerCommand::ShowGroups { user_id } => {
+                    match get_user_groups(&conn, user_id) {
+                        Ok(groups) => tx_resp.send(ServerResponse::Groups(groups)).unwrap(),
                         Err(e) => tx_resp.send(ServerResponse::Err(e)).unwrap(),
                     }
                 }

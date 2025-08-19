@@ -2,6 +2,7 @@ use std::sync::mpsc::{Sender, Receiver};
 use crate::backend::{start_backend, ServerCommand, ServerResponse};
 use crate::user::User;
 use eframe::{egui, App, Frame};
+use crate::group::Group;
 
 #[derive(Clone)]
 pub enum Screen {
@@ -9,6 +10,7 @@ pub enum Screen {
     Register,
     MainApp(User),
     CreateGroup(User),
+    MyGroups(i32),
 }
 
 pub struct MyApp {
@@ -16,11 +18,9 @@ pub struct MyApp {
     rx_resp: Receiver<ServerResponse>,
     pub screen: Screen,
 
-    // Полета за вход
     login_email: String,
     login_password: String,
 
-    // Полета за регистрация
     reg_username: String,
     reg_email: String,
     reg_password: String,
@@ -29,6 +29,8 @@ pub struct MyApp {
     search_query: String,
     search_results: Vec<User>,
     selected_users: Vec<i32>,
+
+    my_groups: Vec<Group>,
 
     loading: bool,
     success_message: Option<String>,
@@ -54,6 +56,7 @@ impl Default for MyApp {
             search_query: String::new(),
             search_results: Vec::new(),
             selected_users: Vec::new(),
+            my_groups: Vec::new(),
             loading: false,
             success_message: None,
             success_time: None,
@@ -73,6 +76,7 @@ impl App for MyApp {
             Screen::Login => self.show_login(ctx),
             Screen::Register => self.show_register(ctx),
             Screen::CreateGroup(user) => self.show_create_group(ctx, user.id()),
+            Screen::MyGroups(user_id) => self.show_my_groups(ctx, user_id),
         }
     }
 }
@@ -98,6 +102,10 @@ impl MyApp {
                 }
                 ServerResponse::Users(users) => {
                     self.search_results = users;
+                    self.loading = false;
+                }
+                ServerResponse::Groups(groups) => {
+                    self.my_groups = groups;
                     self.loading = false;
                 }
 
@@ -218,7 +226,9 @@ impl MyApp {
             });
 
             ui.horizontal(|ui| {
-                ui.label("Моите групи ");
+                if ui.button("Моите групи ").clicked() {
+                    self.screen = Screen::MyGroups(user.id());
+                }
                 if ui.button("Създай група").clicked() {
                     self.screen = Screen::CreateGroup(user.clone());
                 }
@@ -256,7 +266,7 @@ impl MyApp {
                     let mut checked = self.selected_users.contains(&user.id());
 
                     ui.horizontal(|ui| {
-                        // Checkbox за селекция
+
                         if ui.checkbox(&mut checked, "").changed() {
                             if checked {
                                 if !self.selected_users.contains(&user.id()) {
@@ -309,6 +319,47 @@ impl MyApp {
 
             self.update_messages(ctx);
             self.show_messages(ui);
+        });
+    }
+
+    fn show_my_groups(&mut self, ctx: &egui::Context, user_id: i32) {
+        egui::CentralPanel::default().show(ctx, |ui| {
+            ui.heading("Моите групи");
+
+            ui.add_enabled_ui(!self.loading, |ui| {
+                let _ = self.tx_cmd.send(ServerCommand::ShowGroups {
+                            user_id,
+                        });
+                //self.loading = true;
+                self.process_backend_responses(ctx);
+
+                for group in &self.my_groups {
+                    ui.horizontal(|ui| {
+                        ui.label(format!("{}", group.groupname()));
+                        if ui.button("Добави разход").clicked() {
+
+                        }
+                    });
+
+                    ui.separator();
+                }
+
+                if ui.button("Назад").clicked() {
+                    let owner_id = user_id;
+                    let _ = self.tx_cmd.send(ServerCommand::GetUser { owner_id });
+                    self.loading = true;
+                    self.process_backend_responses(ctx);
+                }
+            });
+
+            if self.loading {
+                ui.separator();
+                ui.label("Моля изчакайте...");
+            }
+
+            self.update_messages(ctx);
+            self.show_messages(ui);
+
         });
     }
 }

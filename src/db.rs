@@ -4,6 +4,7 @@ use password_hash::{SaltString, PasswordHasher as _, PasswordHash, PasswordVerif
 use rand_core::OsRng;
 use regex::Regex;
 use crate::user::{User};
+use crate::group::Group;
 
 pub fn init_db() -> Result<Connection> {
     let conn = Connection::open("database.db")?;
@@ -187,4 +188,33 @@ pub fn get_user_by_id(conn: &Connection, user_id: i32) -> std::result::Result<Us
     } else {
         Err("Не е намерен потребител.".to_string())
     }
+
+}
+
+
+pub fn get_user_groups(conn: &Connection, user_id: i32) -> std::result::Result<Vec<Group>, String> {
+    let mut stmt = conn
+        .prepare("SELECT g.id, g.name, g.owner_id
+             FROM groups g
+             JOIN group_members gm ON g.id = gm.group_id
+             WHERE gm.user_id = ?1
+             UNION
+             SELECT g1.id, g1.name, g1.owner_id
+             FROM groups g1
+             WHERE g1.owner_id = ?1",)
+        .map_err(|e| e.to_string())?;
+
+    let groups = stmt
+        .query_map( [user_id], |row| {
+            Ok(Group::new (
+                row.get(0)?,
+                row.get(1)?,
+                row.get(2)?,
+            ))
+        })
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+
+    Ok(groups)
 }
