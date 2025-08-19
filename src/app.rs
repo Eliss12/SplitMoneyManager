@@ -9,7 +9,7 @@ pub enum Screen {
     Login,
     Register,
     MainApp(User),
-    CreateGroup(User),
+    CreateGroup(i32),
     MyGroups(i32),
     AddExp(i32, i32),
 }
@@ -83,7 +83,7 @@ impl App for MyApp {
             Screen::MainApp(user) => self.show_main_app(ctx, &user),
             Screen::Login => self.show_login(ctx),
             Screen::Register => self.show_register(ctx),
-            Screen::CreateGroup(user) => self.show_create_group(ctx, user.id()),
+            Screen::CreateGroup(user_id) => self.show_create_group(ctx, user_id),
             Screen::MyGroups(user_id) => self.show_my_groups(ctx, user_id),
             Screen::AddExp(user_id, group_id) => self.show_add_expenses(ctx, user_id, group_id),
         }
@@ -239,7 +239,7 @@ impl MyApp {
                     self.screen = Screen::MyGroups(user.id());
                 }
                 if ui.button("Създай група").clicked() {
-                    self.screen = Screen::CreateGroup(user.clone());
+                    self.screen = Screen::CreateGroup(user.id());
                 }
             });
 
@@ -300,9 +300,9 @@ impl MyApp {
                 if ui.button("Създай групата").clicked() {
                     if !self.group_name.trim().is_empty() && !self.selected_users.is_empty() {
                         let _ = self.tx_cmd.send(ServerCommand::CreateGroup {
-                            name: self.group_name.clone(),
+                            name: std::mem::take(&mut self.group_name),
                             owner_id,
-                            members: self.selected_users.clone(),
+                            members: std::mem::take(&mut self.selected_users),
                         });
                         self.loading = true;
                         self.process_backend_responses(ctx);
