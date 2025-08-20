@@ -294,6 +294,9 @@ impl MyApp {
                     });
                 }
 
+                if !self.selected_users.contains(&owner_id) {
+                    self.selected_users.push(owner_id);
+                }
 
                 ui.separator();
 

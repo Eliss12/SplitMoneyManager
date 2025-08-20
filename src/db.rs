@@ -5,9 +5,10 @@ use rand_core::OsRng;
 use regex::Regex;
 use crate::user::{User};
 use crate::group::Group;
+use rusqlite::OptionalExtension;
 
 pub fn init_db() -> Result<Connection> {
-    let conn = Connection::open("database.db")?;
+    let conn = Connection::open("splitmoney.db")?;
 
     conn.execute_batch(
         "
@@ -45,6 +46,21 @@ pub fn init_db() -> Result<Connection> {
             paid BOOLEAN DEFAULT 0,
             FOREIGN KEY(group_id) REFERENCES groups(id),
             FOREIGN KEY(payer_id) REFERENCES users(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS debts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            from_id INTEGER NOT NULL,
+            to_id INTEGER NOT NULL,
+            amount REAL NOT NULL,
+            group_id INTEGER NOT NULL,
+            due_date TEXT NOT NULL,
+            confirmed_by_debtor BOOLEAN DEFAULT 0,
+            confirmed_by_creditor BOOLEAN DEFAULT 0,
+            settled BOOLEAN DEFAULT 0,
+            FOREIGN KEY(from_id) REFERENCES users(id),
+            FOREIGN KEY(to_id) REFERENCES users(id),
+            FOREIGN KEY(group_id) REFERENCES groups(id)
         );
         "
     )?;
@@ -197,11 +213,7 @@ pub fn get_user_groups(conn: &Connection, user_id: i32) -> std::result::Result<V
         .prepare("SELECT g.id, g.name, g.owner_id
              FROM groups g
              JOIN group_members gm ON g.id = gm.group_id
-             WHERE gm.user_id = ?1
-             UNION
-             SELECT g1.id, g1.name, g1.owner_id
-             FROM groups g1
-             WHERE g1.owner_id = ?1",)
+             WHERE gm.user_id = ?1",)
         .map_err(|e| e.to_string())?;
 
     let groups = stmt
@@ -219,7 +231,103 @@ pub fn get_user_groups(conn: &Connection, user_id: i32) -> std::result::Result<V
     Ok(groups)
 }
 
-pub fn add_expenses(conn: &Connection, group_id: i32, payer_id: i32, amount: f32, description: &str, due_date: &str) -> std::result::Result<(), String> {
+pub fn add_or_update_debt(
+    conn: &Connection,
+    from_id: i32,
+    to_id: i32,
+    group_id: i32,
+    amount: f32,
+    due_date: &str,
+) -> Result<(), String> {
+
+    let mut stmt = conn.prepare(
+        "SELECT id, amount, confirmed_by_debtor, confirmed_by_creditor
+         FROM debts
+         WHERE from_id = ?1 AND to_id = ?2 AND group_id = ?3 AND settled = 0"
+    ).map_err(|e| e.to_string())?;
+
+    let existing: Option<(i32, f32, bool, bool)> = stmt.query_row(
+        params![from_id, to_id, group_id],
+        |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+    ).optional().map_err(|e| e.to_string())?;
+
+    if let Some((debt_id, old_amount, confirmed_debtor, confirmed_creditor)) = existing {
+
+        if !confirmed_debtor && !confirmed_creditor {
+
+            let new_amount = old_amount + amount;
+            conn.execute(
+                "UPDATE debts SET amount = ?1, due_date = ?2 WHERE id = ?3",
+                params![new_amount, due_date, debt_id],
+            ).map_err(|e| e.to_string())?;
+        } else {
+
+            conn.execute(
+                "INSERT INTO debts (from_id, to_id, group_id, amount, due_date)
+                 VALUES (?1, ?2, ?3, ?4, ?5)",
+                params![from_id, to_id, group_id, amount, due_date],
+            ).map_err(|e| e.to_string())?;
+        }
+    } else {
+
+        let mut stmt2 = conn.prepare(
+            "SELECT id, amount, confirmed_by_debtor, confirmed_by_creditor
+             FROM debts
+             WHERE from_id = ?1 AND to_id = ?2 AND group_id = ?3 AND settled = 0"
+        ).map_err(|e| e.to_string())?;
+
+        let reverse: Option<(i32, f32, bool, bool)> = stmt2.query_row(
+            params![to_id, from_id, group_id],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+        ).optional().map_err(|e| e.to_string())?;
+
+        if let Some((rev_id, rev_amount, confirmed_debtor, confirmed_creditor)) = reverse {
+            if !confirmed_debtor && !confirmed_creditor {
+
+                if amount > rev_amount {
+                    let diff = amount - rev_amount;
+
+                    conn.execute("DELETE FROM debts WHERE id = ?1", params![rev_id])
+                        .map_err(|e| e.to_string())?;
+                    conn.execute(
+                        "INSERT INTO debts (from_id, to_id, group_id, amount, due_date) VALUES (?1, ?2, ?3, ?4, ?5)",
+                        params![from_id, to_id, group_id, diff, due_date],
+                    ).map_err(|e| e.to_string())?;
+                } else if amount < rev_amount {
+                    let diff = rev_amount - amount;
+
+                    conn.execute(
+                        "UPDATE debts SET amount = ?1, due_date = ?2 WHERE id = ?3",
+                        params![diff, due_date, rev_id],
+                    ).map_err(|e| e.to_string())?;
+                } else {
+
+                    conn.execute("DELETE FROM debts WHERE id = ?1", params![rev_id])
+                        .map_err(|e| e.to_string())?;
+                }
+            } else {
+
+                conn.execute(
+                    "INSERT INTO debts (from_id, to_id, group_id, amount, due_date)
+                     VALUES (?1, ?2, ?3, ?4, ?5)",
+                    params![from_id, to_id, group_id, amount, due_date],
+                ).map_err(|e| e.to_string())?;
+            }
+        } else {
+
+            conn.execute(
+                "INSERT INTO debts (from_id, to_id, group_id, amount, due_date)
+                 VALUES (?1, ?2, ?3, ?4, ?5)",
+                params![from_id, to_id, group_id, amount, due_date],
+            ).map_err(|e| e.to_string())?;
+        }
+    }
+
+    Ok(())
+}
+
+
+pub fn add_expenses(conn: &Connection, payer_id: i32, group_id: i32, amount: f32, description: &str, due_date: &str) -> std::result::Result<(), String> {
     let re = Regex::new(r"^\d{4}-\d{2}-\d{2}$").unwrap();
     if !re.is_match(due_date) {
         return Err("Невалиден формат на дата. Използвайте YYYY-MM-DD.".to_string());
@@ -235,6 +343,26 @@ pub fn add_expenses(conn: &Connection, group_id: i32, payer_id: i32, amount: f32
         params![group_id, payer_id, description, amount, due_date],
     )
         .map_err(|e| format!("Грешка в базата данни: {}", e))?;
+
+    let mut stmt = conn
+        .prepare("SELECT user_id FROM group_members WHERE group_id = ?1")
+        .map_err(|e| e.to_string())?;
+
+    let members: Vec<i32> = stmt
+        .query_map(params![group_id], |row| row.get(0))
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<i32>, _>>()
+        .map_err(|e| e.to_string())?;
+
+    let share = amount / members.len() as f32;
+
+    for member_id in members {
+        if member_id == payer_id {
+            continue;
+        }
+
+        add_or_update_debt(conn, member_id, payer_id, group_id, share, due_date)?;
+    }
 
     Ok(())
 }
