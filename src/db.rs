@@ -6,6 +6,7 @@ use regex::Regex;
 use crate::user::{User};
 use crate::group::Group;
 use rusqlite::OptionalExtension;
+use crate::expenses::Expenses;
 
 pub fn init_db() -> Result<Connection> {
     let conn = Connection::open("splitmoney.db")?;
@@ -365,4 +366,32 @@ pub fn add_expenses(conn: &Connection, payer_id: i32, group_id: i32, amount: f32
     }
 
     Ok(())
+}
+
+pub fn get_user_debts(conn: &Connection, user_id: i32) -> std::result::Result<Vec<Expenses>, String> {
+    let mut stmt = conn
+        .prepare("SELECT d.id, u.username, d.amount, g.name, d.due_date
+            FROM debts d
+            JOIN users u ON d.to_id = u.id
+            JOIN groups g ON d.group_id = g.id
+            WHERE d.from_id = ?
+            AND d.settled = 0
+            ORDER BY d.due_date ASC;",)
+        .map_err(|e| e.to_string())?;
+
+    let expenses = stmt
+        .query_map( [user_id], |row| {
+            Ok(Expenses::new (
+                row.get(0)?,
+                row.get(1)?,
+                row.get(2)?,
+                row.get(3)?,
+                row.get(4)?,
+            ))
+        })
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+
+    Ok(expenses)
 }

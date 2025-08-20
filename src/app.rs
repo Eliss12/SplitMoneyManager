@@ -3,6 +3,7 @@ use crate::backend::{start_backend, ServerCommand, ServerResponse};
 use crate::user::User;
 use eframe::{egui, App, Frame};
 use crate::group::Group;
+use crate::expenses::Expenses;
 
 #[derive(Clone)]
 pub enum Screen {
@@ -12,6 +13,8 @@ pub enum Screen {
     CreateGroup(i32),
     MyGroups(i32),
     AddExp(i32, i32),
+    MyDebts(i32),
+    //MyCredits(i32),
 }
 
 pub struct MyApp {
@@ -36,6 +39,8 @@ pub struct MyApp {
     exp_amount: f32,
     exp_description: String,
     exp_due_date: String,
+
+    my_debts: Vec<Expenses>,
 
     loading: bool,
     success_message: Option<String>,
@@ -65,6 +70,7 @@ impl Default for MyApp {
             exp_amount: 0.0,
             exp_description: String::new(),
             exp_due_date: String::new(),
+            my_debts: Vec::new(),
             loading: false,
             success_message: None,
             success_time: None,
@@ -86,6 +92,8 @@ impl App for MyApp {
             Screen::CreateGroup(user_id) => self.show_create_group(ctx, user_id),
             Screen::MyGroups(user_id) => self.show_my_groups(ctx, user_id),
             Screen::AddExp(user_id, group_id) => self.show_add_expenses(ctx, user_id, group_id),
+            Screen::MyDebts(user_id) => self.show_my_debts(ctx, user_id),
+            //Screen::MyCredits(user_id) => self.show_my_credits(ctx, user_id),
         }
     }
 }
@@ -117,7 +125,10 @@ impl MyApp {
                     self.my_groups = groups;
                     self.loading = false;
                 }
-
+                ServerResponse::Expenses(expenses) => {
+                    self.my_debts = expenses;
+                    self.loading = false;
+                }
             }
             ctx.request_repaint();
         }
@@ -243,6 +254,15 @@ impl MyApp {
                 }
             });
 
+            ui.horizontal(|ui| {
+                if ui.button("Моите дългове").clicked() {
+                    self.screen = Screen::MyDebts(user.id());
+                }
+                if ui.button("Моите вземания").clicked() {
+                    //self.screen = Screen::MyCredits(user.id());
+                }
+            });
+
         });
     }
 
@@ -340,8 +360,8 @@ impl MyApp {
 
             ui.add_enabled_ui(!self.loading, |ui| {
                 let _ = self.tx_cmd.send(ServerCommand::ShowGroups {
-                            user_id,
-                        });
+                    user_id,
+                });
                 //self.loading = true;
                 self.process_backend_responses(ctx);
 
@@ -419,6 +439,54 @@ impl MyApp {
 
             self.update_messages(ctx);
             self.show_messages(ui);
+        });
+    }
+
+    fn show_my_debts(&mut self, ctx: &egui::Context, user_id: i32) {
+        egui::CentralPanel::default().show(ctx, |ui| {
+            ui.heading("Моите дългове");
+
+            ui.add_enabled_ui(!self.loading, |ui| {
+                let _ = self.tx_cmd.send(ServerCommand::ShowDebts {
+                    user_id,
+                });
+                //self.loading = true;
+                self.process_backend_responses(ctx);
+
+                for debt in &self.my_debts {
+                    ui.horizontal(|ui| {
+                        ui.label(format!(
+                            "Кредитор: {}\nСума: {:.2} лв.\nКрайна дата: {}\nГрупа: {}",
+                            debt.username(),
+                            debt.amount(),
+                            debt.due_date(),
+                            debt.group_name()
+                        ));
+                        ui.separator();
+                        if ui.button("Потвърждаване на плащане").clicked() {
+                            //self.screen = Screen::AddExp(user_id, group.id());
+                        }
+                    });
+
+                    ui.separator();
+                }
+
+                if ui.button("Назад").clicked() {
+                    let owner_id = user_id;
+                    let _ = self.tx_cmd.send(ServerCommand::GetUser { owner_id });
+                    self.loading = true;
+                    self.process_backend_responses(ctx);
+                }
+            });
+
+            if self.loading {
+                ui.separator();
+                ui.label("Моля изчакайте...");
+            }
+
+            self.update_messages(ctx);
+            self.show_messages(ui);
+
         });
     }
 }

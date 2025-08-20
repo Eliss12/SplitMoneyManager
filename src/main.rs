@@ -5,6 +5,7 @@ mod backend;
 mod app;
 mod user;
 mod group;
+mod expenses;
 
 use app::MyApp;
 
