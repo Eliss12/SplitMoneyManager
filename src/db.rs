@@ -368,20 +368,26 @@ pub fn add_expenses(conn: &Connection, payer_id: i32, group_id: i32, amount: f32
     Ok(())
 }
 
-pub fn get_user_debts(conn: &Connection, user_id: i32) -> std::result::Result<Vec<Expenses>, String> {
-    let mut stmt = conn
-        .prepare("SELECT d.id, u.username, d.amount, g.name, d.due_date
-            FROM debts d
-            JOIN users u ON d.to_id = u.id
-            JOIN groups g ON d.group_id = g.id
-            WHERE d.from_id = ?
-            AND d.settled = 0
-            ORDER BY d.due_date ASC;",)
-        .map_err(|e| e.to_string())?;
+pub fn get_user_debts_or_credits(conn: &Connection, user_id: i32, is_debt: bool, ) -> Result<Vec<Expenses>, String> {
+    let condition2 = if is_debt { "d.from_id = ?" } else { "d.to_id = ?" };
+    let condition1 = if is_debt { "d.to_id" } else { "d.from_id" };
+
+    let query = format!(
+        "SELECT d.id, u.username, d.amount, g.name, d.due_date
+         FROM debts d
+         JOIN users u ON {} = u.id
+         JOIN groups g ON d.group_id = g.id
+         WHERE {}
+         AND d.settled = 0
+         ORDER BY d.due_date ASC;",
+        condition1, condition2
+    );
+
+    let mut stmt = conn.prepare(&query).map_err(|e| e.to_string())?;
 
     let expenses = stmt
-        .query_map( [user_id], |row| {
-            Ok(Expenses::new (
+        .query_map([user_id], |row| {
+            Ok(Expenses::new(
                 row.get(0)?,
                 row.get(1)?,
                 row.get(2)?,

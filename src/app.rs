@@ -13,8 +13,7 @@ pub enum Screen {
     CreateGroup(i32),
     MyGroups(i32),
     AddExp(i32, i32),
-    MyDebts(i32),
-    //MyCredits(i32),
+    MyDebtsOrCredits(i32, bool),
 }
 
 pub struct MyApp {
@@ -40,8 +39,7 @@ pub struct MyApp {
     exp_description: String,
     exp_due_date: String,
 
-    my_debts: Vec<Expenses>,
-
+    my_debts_or_credits: Vec<Expenses>,
     loading: bool,
     success_message: Option<String>,
     success_time: Option<std::time::Instant>,
@@ -70,7 +68,7 @@ impl Default for MyApp {
             exp_amount: 0.0,
             exp_description: String::new(),
             exp_due_date: String::new(),
-            my_debts: Vec::new(),
+            my_debts_or_credits: Vec::new(),
             loading: false,
             success_message: None,
             success_time: None,
@@ -92,8 +90,8 @@ impl App for MyApp {
             Screen::CreateGroup(user_id) => self.show_create_group(ctx, user_id),
             Screen::MyGroups(user_id) => self.show_my_groups(ctx, user_id),
             Screen::AddExp(user_id, group_id) => self.show_add_expenses(ctx, user_id, group_id),
-            Screen::MyDebts(user_id) => self.show_my_debts(ctx, user_id),
-            //Screen::MyCredits(user_id) => self.show_my_credits(ctx, user_id),
+            Screen::MyDebtsOrCredits(user_id, true) => self.show_my_debts_or_credits(ctx, user_id, true),
+            Screen::MyDebtsOrCredits(user_id, false) => self.show_my_debts_or_credits(ctx, user_id, false),
         }
     }
 }
@@ -126,7 +124,7 @@ impl MyApp {
                     self.loading = false;
                 }
                 ServerResponse::Expenses(expenses) => {
-                    self.my_debts = expenses;
+                    self.my_debts_or_credits = expenses;
                     self.loading = false;
                 }
             }
@@ -256,10 +254,10 @@ impl MyApp {
 
             ui.horizontal(|ui| {
                 if ui.button("Моите дългове").clicked() {
-                    self.screen = Screen::MyDebts(user.id());
+                    self.screen = Screen::MyDebtsOrCredits(user.id(), true);
                 }
                 if ui.button("Моите вземания").clicked() {
-                    //self.screen = Screen::MyCredits(user.id());
+                    self.screen = Screen::MyDebtsOrCredits(user.id(), false);
                 }
             });
 
@@ -442,25 +440,37 @@ impl MyApp {
         });
     }
 
-    fn show_my_debts(&mut self, ctx: &egui::Context, user_id: i32) {
+    fn show_my_debts_or_credits(&mut self, ctx: &egui::Context, user_id: i32, is_debt: bool) {
         egui::CentralPanel::default().show(ctx, |ui| {
-            ui.heading("Моите дългове");
+            let heading;
+            let user;
+            if is_debt {
+                heading = "Моите дългове";
+                user = "Кредитор";
+            }
+            else {
+                heading = "Моите вземания";
+                user = "Длъжник";
+            }
+            ui.heading(heading);
 
             ui.add_enabled_ui(!self.loading, |ui| {
-                let _ = self.tx_cmd.send(ServerCommand::ShowDebts {
+                let _ = self.tx_cmd.send(ServerCommand::ShowDebtsOrCredits {
                     user_id,
+                    is_debt,
                 });
                 //self.loading = true;
                 self.process_backend_responses(ctx);
 
-                for debt in &self.my_debts {
+                for debt_or_credit in &self.my_debts_or_credits {
                     ui.horizontal(|ui| {
                         ui.label(format!(
-                            "Кредитор: {}\nСума: {:.2} лв.\nКрайна дата: {}\nГрупа: {}",
-                            debt.username(),
-                            debt.amount(),
-                            debt.due_date(),
-                            debt.group_name()
+                            "{}: {}\nСума: {:.2} лв.\nКрайна дата: {}\nГрупа: {}",
+                            user,
+                            debt_or_credit.username(),
+                            debt_or_credit.amount(),
+                            debt_or_credit.due_date(),
+                            debt_or_credit.group_name()
                         ));
                         ui.separator();
                         if ui.button("Потвърждаване на плащане").clicked() {
