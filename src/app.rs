@@ -299,7 +299,8 @@ impl MyApp {
                                 if !self.selected_users.contains(&user.id()) {
                                     self.selected_users.push(user.id());
                                 }
-                            } else {
+                            }
+                            else {
                                 self.selected_users.retain(|&id| id != user.id());
                             }
                         }
@@ -327,7 +328,8 @@ impl MyApp {
                         });
                         self.loading = true;
                         self.process_backend_responses(ctx);
-                    } else {
+                    }
+                    else {
                         self.error_message = Some(
                             "Моля въведете име и изберете поне един член.".to_string(),
                         );
@@ -474,7 +476,11 @@ impl MyApp {
                         ));
                         ui.separator();
                         if ui.button("Потвърждаване на плащане").clicked() {
-                            //self.screen = Screen::AddExp(user_id, group.id());
+                            let debt_id = debt_or_credit.id();
+                            let _ = self.tx_cmd.send(ServerCommand::PaymentConfirmation {
+                                user_id,
+                                debt_id,
+                            });
                         }
                     });
 

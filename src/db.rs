@@ -142,7 +142,8 @@ pub fn login_user(conn: &Connection, email: &str, password: &str) -> std::result
             .map_err(|_| "Невалидна парола".to_string())?;
 
         Ok(User::new(id, username, email, stored_hash, on_time_payments, loyal_payer ))
-    } else {
+    }
+    else {
         Err("Не е намерен потребител".to_string())
     }
 }
@@ -202,7 +203,8 @@ pub fn get_user_by_id(conn: &Connection, user_id: i32) -> std::result::Result<Us
             row.get(2).unwrap(),
 
         ))
-    } else {
+    }
+    else {
         Err("Не е намерен потребител.".to_string())
     }
 
@@ -261,7 +263,8 @@ pub fn add_or_update_debt(
                 "UPDATE debts SET amount = ?1, due_date = ?2 WHERE id = ?3",
                 params![new_amount, due_date, debt_id],
             ).map_err(|e| e.to_string())?;
-        } else {
+        }
+        else {
 
             conn.execute(
                 "INSERT INTO debts (from_id, to_id, group_id, amount, due_date)
@@ -269,7 +272,8 @@ pub fn add_or_update_debt(
                 params![from_id, to_id, group_id, amount, due_date],
             ).map_err(|e| e.to_string())?;
         }
-    } else {
+    }
+    else {
 
         let mut stmt2 = conn.prepare(
             "SELECT id, amount, confirmed_by_debtor, confirmed_by_creditor
@@ -294,19 +298,22 @@ pub fn add_or_update_debt(
                         "INSERT INTO debts (from_id, to_id, group_id, amount, due_date) VALUES (?1, ?2, ?3, ?4, ?5)",
                         params![from_id, to_id, group_id, diff, due_date],
                     ).map_err(|e| e.to_string())?;
-                } else if amount < rev_amount {
+                }
+                else if amount < rev_amount {
                     let diff = rev_amount - amount;
 
                     conn.execute(
                         "UPDATE debts SET amount = ?1, due_date = ?2 WHERE id = ?3",
                         params![diff, due_date, rev_id],
                     ).map_err(|e| e.to_string())?;
-                } else {
+                }
+                else {
 
                     conn.execute("DELETE FROM debts WHERE id = ?1", params![rev_id])
                         .map_err(|e| e.to_string())?;
                 }
-            } else {
+            }
+            else {
 
                 conn.execute(
                     "INSERT INTO debts (from_id, to_id, group_id, amount, due_date)
@@ -314,7 +321,8 @@ pub fn add_or_update_debt(
                     params![from_id, to_id, group_id, amount, due_date],
                 ).map_err(|e| e.to_string())?;
             }
-        } else {
+        }
+        else {
 
             conn.execute(
                 "INSERT INTO debts (from_id, to_id, group_id, amount, due_date)
@@ -368,7 +376,7 @@ pub fn add_expenses(conn: &Connection, payer_id: i32, group_id: i32, amount: f32
     Ok(())
 }
 
-pub fn get_user_debts_or_credits(conn: &Connection, user_id: i32, is_debt: bool, ) -> Result<Vec<Expenses>, String> {
+pub fn get_user_debts_or_credits(conn: &Connection, user_id: i32, is_debt: bool) -> Result<Vec<Expenses>, String> {
     let condition2 = if is_debt { "d.from_id = ?" } else { "d.to_id = ?" };
     let condition1 = if is_debt { "d.to_id" } else { "d.from_id" };
 
@@ -400,4 +408,93 @@ pub fn get_user_debts_or_credits(conn: &Connection, user_id: i32, is_debt: bool,
         .map_err(|e| e.to_string())?;
 
     Ok(expenses)
+}
+
+pub fn payment_confirmation(conn: &Connection, user_id: i32, debt_id: i32) -> std::result::Result<String, String> {
+    let mut stmt = conn.prepare(
+        "SELECT from_id, to_id, confirmed_by_debtor, confirmed_by_creditor
+         FROM debts WHERE id = ?1 AND settled = 0"
+    ).map_err(|e| e.to_string())?;
+
+    let (from_id, to_id, mut debtor_conf, mut creditor_conf): (i32, i32, bool, bool) =
+        stmt.query_row([debt_id], |row| {
+            Ok(
+                (row.get(0)?,
+                 row.get(1)?,
+                 row.get(2)?,
+                 row.get(3)?)
+            )
+        }).map_err(|e| e.to_string())?;
+
+    if user_id == from_id {
+        debtor_conf = true;
+    }
+    else if user_id == to_id {
+        creditor_conf = true;
+    }
+    else {
+        return Err("Потребителят не е участник в този дълг.".to_string());
+    }
+
+    if debtor_conf && creditor_conf {
+        conn.execute(
+            "UPDATE debts
+             SET confirmed_by_debtor = 1,
+                 confirmed_by_creditor = 1,
+                 settled = 1
+             WHERE id = ?1",
+            [debt_id],
+        ).map_err(|e| e.to_string())?;
+
+        let mut stmt_check = conn.prepare(
+            "SELECT CASE WHEN due_date >= date('now') THEN 1 ELSE 0 END
+         FROM debts
+         WHERE id = ?1"
+        ).map_err(|e| e.to_string())?;
+
+        let on_time: i32 = stmt_check.query_row([debt_id], |row| row.get(0))
+            .map_err(|e| e.to_string())?;
+
+        if on_time == 1 {
+            conn.execute(
+                "UPDATE users
+                 SET on_time_payments = on_time_payments + 1
+                 WHERE id = ?1",
+                [from_id],
+            ).map_err(|e| e.to_string())?;
+
+            let mut stmt_user = conn.prepare(
+                "SELECT on_time_payments FROM users WHERE id = ?1"
+            ).map_err(|e| e.to_string())?;
+            let payments: i32 = stmt_user.query_row([from_id], |row| row.get(0))
+                .map_err(|e| e.to_string())?;
+
+            if payments >= 20 {
+                conn.execute(
+                    "UPDATE users SET loyal_payer = 1 WHERE id = ?1",
+                    [from_id],
+                ).map_err(|e| e.to_string())?;
+            }
+        }
+        else {
+
+            conn.execute(
+                "UPDATE users
+                 SET loyal_payer = 0
+                 WHERE id = ?1",
+                [from_id],
+            ).map_err(|e| e.to_string())?;
+        }
+        Ok("Дългът е напълно изплатен и приключен.".to_string())
+    }
+    else {
+        conn.execute(
+            "UPDATE debts
+             SET confirmed_by_debtor = ?1,
+                 confirmed_by_creditor = ?2
+             WHERE id = ?3",
+            params![debtor_conf, creditor_conf, debt_id],
+        ).map_err(|e| e.to_string())?;
+        Ok("Потвърдено. Очаква се другата страна да потвърди.".to_string())
+    }
 }

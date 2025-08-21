@@ -12,6 +12,10 @@ impl Expenses {
         Self {id, username, amount, group_name, due_date}
     }
 
+    pub fn id(&self) -> i32 {
+        self.id
+    }
+
     pub fn username(&self) -> &str {
         &self.username
     }
