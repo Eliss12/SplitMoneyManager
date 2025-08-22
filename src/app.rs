@@ -208,13 +208,21 @@ impl MyApp {
             );
 
             if ui.button("Създай акаунт").clicked() {
+                if self.reg_email.trim().is_empty() || self.reg_password.trim().is_empty() || self.reg_username.trim().is_empty() {
+                    self.error_message = Some(
+                        "Моля попълнете всички полета.".to_string(),
+                    );
+                    self.error_time = Some(std::time::Instant::now());
+                }
+                else {
+                    let _ = self.tx_cmd.send(ServerCommand::Register {
+                        username: std::mem::take(&mut self.reg_username),
+                        email: std::mem::take(&mut self.reg_email),
+                        password: std::mem::take(&mut self.reg_password),
+                    });
+                    self.loading = true;
 
-                let _ = self.tx_cmd.send(ServerCommand::Register {
-                    username: std::mem::take(&mut self.reg_username),
-                    email: std::mem::take(&mut self.reg_email),
-                    password: std::mem::take(&mut self.reg_password),
-                });
-                self.loading = true;
+                }
 
             }
 
