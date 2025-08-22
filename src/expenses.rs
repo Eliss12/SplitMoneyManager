@@ -32,4 +32,8 @@ impl Expenses {
     pub fn due_date(&self) -> &str {
         &self.due_date
     }
+
+    pub fn description(&self) -> &str {
+        &self.description
+    }
 }

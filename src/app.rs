@@ -481,10 +481,11 @@ impl MyApp {
                 for debt_or_credit in &self.my_debts_or_credits {
                     ui.horizontal(|ui| {
                         ui.label(format!(
-                            "{}: {}\nСума: {:.2} лв.\nКрайна дата: {}\nГрупа: {}",
+                            "{}: {}\nСума: {:.2} лв.\n Описание: {}\nКрайна дата: {}\nГрупа: {}",
                             user,
                             debt_or_credit.username(),
                             debt_or_credit.amount(),
+                            debt_or_credit.description(),
                             debt_or_credit.due_date(),
                             debt_or_credit.group_name()
                         ));

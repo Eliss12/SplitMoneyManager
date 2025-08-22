@@ -306,7 +306,7 @@ pub fn add_or_update_debt(
             else {
 
                 conn.execute(
-                    "INSERT INTO debts (from_id, to_id, group_id, amount, due_date)
+                    "INSERT INTO debts (from_id, to_id, group_id, amount, due_date, description)
                      VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
                     params![from_id, to_id, group_id, amount, due_date, description],
                 ).map_err(|e| e.to_string())?;
@@ -315,7 +315,7 @@ pub fn add_or_update_debt(
         else {
 
             conn.execute(
-                "INSERT INTO debts (from_id, to_id, group_id, amount, due_date)
+                "INSERT INTO debts (from_id, to_id, group_id, amount, due_date, description)
                  VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
                 params![from_id, to_id, group_id, amount, due_date, description],
             ).map_err(|e| e.to_string())?;
@@ -332,7 +332,7 @@ pub fn add_expenses(conn: &Connection, payer_id: i32, group_id: i32, amount: f32
         return Err("Невалиден формат на дата. Използвайте YYYY-MM-DD.".to_string());
     }
 
-    if amount < 0.0 {
+    if amount <= 0.0 {
         return Err("Сумата трябва да е положително число.".to_string());
     }
 
