@@ -5,11 +5,12 @@ pub struct Expenses {
     amount: f32,
     group_name: String,
     due_date: String,
+    description: String,
 }
 
 impl Expenses {
-    pub fn new(id: i32, username: String, amount: f32, group_name: String, due_date: String) -> Self {
-        Self {id, username, amount, group_name, due_date}
+    pub fn new(id: i32, username: String, amount: f32, group_name: String, due_date: String, description: String) -> Self {
+        Self {id, username, amount, group_name, due_date, description}
     }
 
     pub fn id(&self) -> i32 {

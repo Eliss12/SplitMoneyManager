@@ -9,7 +9,7 @@ use rusqlite::OptionalExtension;
 use crate::expenses::Expenses;
 
 pub fn init_db() -> Result<Connection> {
-    let conn = Connection::open("splitmoney.db")?;
+    let conn = Connection::open("Test.db")?;
 
     conn.execute_batch(
         "
@@ -37,18 +37,6 @@ pub fn init_db() -> Result<Connection> {
             FOREIGN KEY(user_id) REFERENCES users(id)
         );
 
-        CREATE TABLE IF NOT EXISTS expenses (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            group_id INTEGER NOT NULL,
-            payer_id INTEGER NOT NULL,
-            description TEXT NOT NULL,
-            amount REAL NOT NULL,
-            due_date TEXT NOT NULL,
-            paid BOOLEAN DEFAULT 0,
-            FOREIGN KEY(group_id) REFERENCES groups(id),
-            FOREIGN KEY(payer_id) REFERENCES users(id)
-        );
-
         CREATE TABLE IF NOT EXISTS debts (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             from_id INTEGER NOT NULL,
@@ -56,6 +44,7 @@ pub fn init_db() -> Result<Connection> {
             amount REAL NOT NULL,
             group_id INTEGER NOT NULL,
             due_date TEXT NOT NULL,
+            description TEXT NOT NULL,
             confirmed_by_debtor BOOLEAN DEFAULT 0,
             confirmed_by_creditor BOOLEAN DEFAULT 0,
             settled BOOLEAN DEFAULT 0,
@@ -241,6 +230,7 @@ pub fn add_or_update_debt(
     group_id: i32,
     amount: f32,
     due_date: &str,
+    description: &str,
 ) -> Result<(), String> {
 
     let mut stmt = conn.prepare(
@@ -260,16 +250,16 @@ pub fn add_or_update_debt(
 
             let new_amount = old_amount + amount;
             conn.execute(
-                "UPDATE debts SET amount = ?1, due_date = ?2 WHERE id = ?3",
-                params![new_amount, due_date, debt_id],
+                "UPDATE debts SET amount = ?1, due_date = ?2, description = ?3 WHERE id = ?4",
+                params![new_amount, due_date, description, debt_id],
             ).map_err(|e| e.to_string())?;
         }
         else {
 
             conn.execute(
-                "INSERT INTO debts (from_id, to_id, group_id, amount, due_date)
-                 VALUES (?1, ?2, ?3, ?4, ?5)",
-                params![from_id, to_id, group_id, amount, due_date],
+                "INSERT INTO debts (from_id, to_id, group_id, amount, due_date, description)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                params![from_id, to_id, group_id, amount, due_date, description],
             ).map_err(|e| e.to_string())?;
         }
     }
@@ -295,16 +285,16 @@ pub fn add_or_update_debt(
                     conn.execute("DELETE FROM debts WHERE id = ?1", params![rev_id])
                         .map_err(|e| e.to_string())?;
                     conn.execute(
-                        "INSERT INTO debts (from_id, to_id, group_id, amount, due_date) VALUES (?1, ?2, ?3, ?4, ?5)",
-                        params![from_id, to_id, group_id, diff, due_date],
+                        "INSERT INTO debts (from_id, to_id, group_id, amount, due_date, description) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                        params![from_id, to_id, group_id, diff, due_date, description],
                     ).map_err(|e| e.to_string())?;
                 }
                 else if amount < rev_amount {
                     let diff = rev_amount - amount;
 
                     conn.execute(
-                        "UPDATE debts SET amount = ?1, due_date = ?2 WHERE id = ?3",
-                        params![diff, due_date, rev_id],
+                        "UPDATE debts SET amount = ?1, due_date = ?2, description = ?3 WHERE id = ?4",
+                        params![diff, due_date, description, rev_id],
                     ).map_err(|e| e.to_string())?;
                 }
                 else {
@@ -317,8 +307,8 @@ pub fn add_or_update_debt(
 
                 conn.execute(
                     "INSERT INTO debts (from_id, to_id, group_id, amount, due_date)
-                     VALUES (?1, ?2, ?3, ?4, ?5)",
-                    params![from_id, to_id, group_id, amount, due_date],
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                    params![from_id, to_id, group_id, amount, due_date, description],
                 ).map_err(|e| e.to_string())?;
             }
         }
@@ -326,8 +316,8 @@ pub fn add_or_update_debt(
 
             conn.execute(
                 "INSERT INTO debts (from_id, to_id, group_id, amount, due_date)
-                 VALUES (?1, ?2, ?3, ?4, ?5)",
-                params![from_id, to_id, group_id, amount, due_date],
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                params![from_id, to_id, group_id, amount, due_date, description],
             ).map_err(|e| e.to_string())?;
         }
     }
@@ -338,20 +328,13 @@ pub fn add_or_update_debt(
 
 pub fn add_expenses(conn: &Connection, payer_id: i32, group_id: i32, amount: f32, description: &str, due_date: &str) -> std::result::Result<(), String> {
     let re = Regex::new(r"^\d{4}-\d{2}-\d{2}$").unwrap();
-    if !re.is_match(due_date) {
+    if !re.is_match(due_date) && !due_date.is_empty() {
         return Err("Невалиден формат на дата. Използвайте YYYY-MM-DD.".to_string());
     }
 
     if amount < 0.0 {
         return Err("Сумата трябва да е положително число.".to_string());
     }
-
-    conn.execute(
-        "INSERT INTO expenses (group_id, payer_id, description, amount, due_date)
-         VALUES (?1, ?2, ?3, ?4, ?5)",
-        params![group_id, payer_id, description, amount, due_date],
-    )
-        .map_err(|e| format!("Грешка в базата данни: {}", e))?;
 
     let mut stmt = conn
         .prepare("SELECT user_id FROM group_members WHERE group_id = ?1")
@@ -370,7 +353,7 @@ pub fn add_expenses(conn: &Connection, payer_id: i32, group_id: i32, amount: f32
             continue;
         }
 
-        add_or_update_debt(conn, member_id, payer_id, group_id, share, due_date)?;
+        add_or_update_debt(conn, member_id, payer_id, group_id, share, due_date, description)?;
     }
 
     Ok(())
@@ -381,7 +364,7 @@ pub fn get_user_debts_or_credits(conn: &Connection, user_id: i32, is_debt: bool)
     let condition1 = if is_debt { "d.to_id" } else { "d.from_id" };
 
     let query = format!(
-        "SELECT d.id, u.username, d.amount, g.name, d.due_date
+        "SELECT d.id, u.username, d.amount, g.name, d.due_date, d.description
          FROM debts d
          JOIN users u ON {} = u.id
          JOIN groups g ON d.group_id = g.id
@@ -401,6 +384,7 @@ pub fn get_user_debts_or_credits(conn: &Connection, user_id: i32, is_debt: bool)
                 row.get(2)?,
                 row.get(3)?,
                 row.get(4)?,
+                row.get(5)?,
             ))
         })
         .map_err(|e| e.to_string())?
@@ -447,9 +431,13 @@ pub fn payment_confirmation(conn: &Connection, user_id: i32, debt_id: i32) -> st
         ).map_err(|e| e.to_string())?;
 
         let mut stmt_check = conn.prepare(
-            "SELECT CASE WHEN due_date >= date('now') THEN 1 ELSE 0 END
-         FROM debts
-         WHERE id = ?1"
+            "SELECT CASE
+                        WHEN due_date IS NULL THEN -1
+                        WHEN due_date >= date('now') THEN 1
+                        ELSE 0
+                    END
+                FROM debts
+                WHERE id = ?1;"
         ).map_err(|e| e.to_string())?;
 
         let on_time: i32 = stmt_check.query_row([debt_id], |row| row.get(0))

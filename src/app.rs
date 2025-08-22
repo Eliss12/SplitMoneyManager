@@ -402,6 +402,12 @@ impl MyApp {
             let mut amount_str = self.exp_amount.to_string();
             ui.label("Сума:");
             ui.text_edit_singleline(&mut amount_str);
+            if amount_str.is_empty() {
+                self.error_message = Some(
+                    "Моля въведете сума.".to_string(),
+                );
+                self.error_time = Some(std::time::Instant::now());
+            }
             if let Ok(parsed) = amount_str.parse::<f32>() {
                 self.exp_amount = parsed;
             }
