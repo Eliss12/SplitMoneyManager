@@ -1,6 +1,6 @@
 use rusqlite::{params, Connection, Result};
 use argon2::{Argon2, PasswordHasher};
-use password_hash::{SaltString, PasswordHasher as _, PasswordHash, PasswordVerifier};
+use password_hash::{SaltString, PasswordHash, PasswordVerifier};
 use rand_core::OsRng;
 use regex::Regex;
 use crate::user::{User};

@@ -56,27 +56,8 @@ impl User {
         &self.email
     }
 
-    pub fn password_hash(&self) -> &str {
-        &self.password_hash
-    }
-
-    pub fn on_time_payments(&self) -> i32 {
-        self.on_time_payments
-    }
-
     pub fn is_loyal_payer(&self) -> bool {
         self.loyal_payer
     }
 
-
-    pub fn add_on_time_payment(&mut self) {
-        self.on_time_payments += 1;
-        if self.on_time_payments >= 20 {
-            self.loyal_payer = true;
-        }
-    }
-
-    pub fn set_password_hash(&mut self, new_hash: String) {
-        self.password_hash = new_hash;
-    }
 }
