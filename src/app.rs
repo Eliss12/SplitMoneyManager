@@ -45,6 +45,7 @@ pub struct MyApp {
     notifications: Vec<Notification>,
     loading: bool,
     notification_loading: bool,
+    group_loading: bool,
     success_message: Option<String>,
     success_time: Option<std::time::Instant>,
     error_message: Option<String>,
@@ -76,6 +77,7 @@ impl Default for MyApp {
             notifications: Vec::new(),
             loading: false,
             notification_loading: false,
+            group_loading: false,
             success_message: None,
             success_time: None,
             error_message: None,
@@ -425,28 +427,33 @@ impl MyApp {
     fn show_my_groups(&mut self, ctx: &egui::Context, user_id: i32) {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading("Моите групи");
-
-            ui.add_enabled_ui(!self.loading, |ui| {
+            if !self.group_loading {
+                self.my_groups = Vec::new();
                 let _ = self.tx_cmd.send(ServerCommand::ShowGroups {
                     user_id,
                 });
-                //self.loading = true;
+                self.group_loading = true;
+                self.loading = true;
                 self.process_backend_responses(ctx);
+            }
 
-                for group in &self.my_groups {
-                    ui.horizontal(|ui| {
-                        ui.label(format!("{}", group.groupname()));
-                        if ui.button("Добави разход").clicked() {
-                            self.screen = Screen::AddExp(user_id, group.id());
-                        }
-                    });
+            for group in &self.my_groups {
+                ui.horizontal(|ui| {
+                    ui.label(format!("{}", group.groupname()));
+                    if ui.button("Добави разход").clicked() {
+                        self.screen = Screen::AddExp(user_id, group.id());
+                    }
+                });
 
-                    ui.separator();
-                }
+                ui.separator();
+            }
+
+            ui.add_enabled_ui(!self.loading, |ui| {
 
                 if ui.button("Назад").clicked() {
                     let owner_id = user_id;
                     let _ = self.tx_cmd.send(ServerCommand::GetUser { owner_id });
+                    self.group_loading = false;
                     self.loading = true;
                     self.process_backend_responses(ctx);
                 }

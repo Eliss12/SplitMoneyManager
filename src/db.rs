@@ -230,6 +230,10 @@ pub fn get_user_groups(conn: &Connection, user_id: i32) -> std::result::Result<V
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| e.to_string())?;
 
+    if groups.is_empty() {
+        return Err("Нямате групи!".to_string());
+    }
+
     Ok(groups)
 }
 
