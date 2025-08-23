@@ -46,6 +46,7 @@ pub struct MyApp {
     loading: bool,
     notification_loading: bool,
     group_loading: bool,
+    debts_or_credits_loading: bool,
     success_message: Option<String>,
     success_time: Option<std::time::Instant>,
     error_message: Option<String>,
@@ -78,6 +79,7 @@ impl Default for MyApp {
             loading: false,
             notification_loading: false,
             group_loading: false,
+            debts_or_credits_loading: false,
             success_message: None,
             success_time: None,
             error_message: None,
@@ -537,41 +539,48 @@ impl MyApp {
             }
             ui.heading(heading);
 
-            ui.add_enabled_ui(!self.loading, |ui| {
+            if !self.debts_or_credits_loading {
+                self.my_debts_or_credits = Vec::new();
                 let _ = self.tx_cmd.send(ServerCommand::ShowDebtsOrCredits {
                     user_id,
                     is_debt,
                 });
-                //self.loading = true;
+                self.debts_or_credits_loading = true;
+                self.loading = true;
                 self.process_backend_responses(ctx);
+            }
 
-                for debt_or_credit in &self.my_debts_or_credits {
-                    ui.horizontal(|ui| {
-                        ui.label(format!(
-                            "{}: {}\nСума: {:.2} лв.\nОписание: {}\nКрайна дата: {}\nГрупа: {}",
-                            user,
-                            debt_or_credit.username(),
-                            debt_or_credit.amount(),
-                            debt_or_credit.description(),
-                            debt_or_credit.due_date(),
-                            debt_or_credit.group_name()
-                        ));
-                        ui.separator();
-                        if ui.button("Потвърждаване на плащане").clicked() {
-                            let debt_id = debt_or_credit.id();
-                            let _ = self.tx_cmd.send(ServerCommand::PaymentConfirmation {
-                                user_id,
-                                debt_id,
-                            });
-                        }
-                    });
-
+            for debt_or_credit in &self.my_debts_or_credits {
+                ui.horizontal(|ui| {
+                    ui.label(format!(
+                        "{}: {}\nСума: {:.2} лв.\nОписание: {}\nКрайна дата: {}\nГрупа: {}",
+                        user,
+                        debt_or_credit.username(),
+                        debt_or_credit.amount(),
+                        debt_or_credit.description(),
+                        debt_or_credit.due_date(),
+                        debt_or_credit.group_name()
+                    ));
                     ui.separator();
-                }
+                    if ui.button("Потвърждаване на плащане").clicked() {
+                        let debt_id = debt_or_credit.id();
+                        let _ = self.tx_cmd.send(ServerCommand::PaymentConfirmation {
+                            user_id,
+                            debt_id,
+                        });
+                        self.debts_or_credits_loading = false;
+                    }
+                });
+
+                ui.separator();
+            }
+
+            ui.add_enabled_ui(!self.loading, |ui| {
 
                 if ui.button("Назад").clicked() {
                     let owner_id = user_id;
                     let _ = self.tx_cmd.send(ServerCommand::GetUser { owner_id });
+                    self.debts_or_credits_loading = false;
                     self.loading = true;
                     self.process_backend_responses(ctx);
                 }

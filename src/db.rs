@@ -405,6 +405,10 @@ pub fn get_user_debts_or_credits(conn: &Connection, user_id: i32, is_debt: bool)
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| e.to_string())?;
 
+    if expenses.is_empty() {
+        return Err("Нямате дългове или вземания!".to_string());
+    }
+
     Ok(expenses)
 }
 
