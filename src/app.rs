@@ -2,6 +2,7 @@ use std::sync::mpsc::{Sender, Receiver};
 use crate::backend::{start_backend, ServerCommand, ServerResponse};
 use crate::user::User;
 use eframe::{egui, App, Frame};
+use egui::{Frame as UiFrame, RichText, Color32, Margin};
 use crate::group::Group;
 use crate::expenses::Expenses;
 use crate::notification::Notification;
@@ -169,10 +170,10 @@ impl MyApp {
 
     fn show_messages(&self, ui: &mut egui::Ui) {
         if let Some(msg) = &self.success_message {
-            ui.colored_label(egui::Color32::GREEN, msg);
+            ui.colored_label(Color32::GREEN, msg);
         }
         if let Some(msg) = &self.error_message {
-            ui.colored_label(egui::Color32::RED, msg);
+            ui.colored_label(Color32::RED, msg);
         }
     }
 
@@ -189,14 +190,24 @@ impl MyApp {
                     .password(true)
             );
 
-            if ui.button("Вход").clicked() {
+            ui.add_space(10.0);
+            if ui.add(
+                egui::Button::new(
+                    RichText::new("Вход").color(Color32::WHITE)
+                ).fill(Color32::from_rgb(30, 60, 150))
+            ).clicked() {
                 let _ = self.tx_cmd.send(ServerCommand::Login {
                     email: std::mem::take(&mut self.login_email),
                     password: std::mem::take(&mut self.login_password),
                 });
             }
 
-            if ui.button("Нямаш акаунт? Регистрирай се").clicked() {
+            ui.add_space(5.0);
+            if ui.add(
+                egui::Button::new(
+                    RichText::new("Нямаш акаунт? Регистрирай се").color(Color32::WHITE)
+                ).fill(Color32::from_rgb(0, 102, 0))
+            ).clicked() {
                 self.screen = Screen::Register;
             }
 
@@ -222,7 +233,12 @@ impl MyApp {
                     .password(true)
             );
 
-            if ui.button("Създай акаунт").clicked() {
+            ui.add_space(10.0);
+            if ui.add(
+                egui::Button::new(
+                    RichText::new("Създай акаунт").color(Color32::WHITE)
+                ).fill(Color32::from_rgb(30, 60, 150))
+            ).clicked() {
                 if self.reg_email.trim().is_empty() || self.reg_password.trim().is_empty() || self.reg_username.trim().is_empty() {
                     self.error_message = Some(
                         "Моля попълнете всички полета.".to_string(),
@@ -238,10 +254,14 @@ impl MyApp {
                     self.loading = true;
 
                 }
-
             }
 
-            if ui.button("Вече имаш акаунт? Влез").clicked() {
+            ui.add_space(5.0);
+            if ui.add(
+                egui::Button::new(
+                    RichText::new("Вече имаш акаунт? Влез").color(Color32::WHITE)
+                ).fill(Color32::from_rgb(0, 102, 0))
+            ).clicked() {
                 self.screen = Screen::Login;
             }
 
@@ -258,48 +278,58 @@ impl MyApp {
     }
 
     fn show_main_app(&mut self, ctx: &egui::Context, user: &User) {
+        use egui::Color32;
+
         egui::CentralPanel::default().show(ctx, |ui| {
-
-
-            ui.horizontal(|ui| {
+            ui.vertical_centered(|ui| {
                 ui.heading(format!("Добре дошли, {}!", user.username()));
-                if ui.button("Изход").clicked() {
-                    self.screen = Screen::Login;
-                }
+                ui.add_space(20.0);
+
+                ui.group(|ui| {
+                    ui.vertical_centered(|ui| {
+                        let button_size = [200.0, 30.0];
+
+                        if ui.add_sized(button_size, egui::Button::new("Моите групи").fill(Color32::from_rgb(30, 60, 150))).clicked() {
+                            self.screen = Screen::MyGroups(user.id());
+                        }
+                        ui.add_space(5.0);
+
+                        if ui.add_sized(button_size, egui::Button::new("Създай група").fill(Color32::from_rgb(0, 102, 102))).clicked() {
+                            self.screen = Screen::CreateGroup(user.id());
+                        }
+                        ui.add_space(5.0);
+
+                        if ui.add_sized(button_size, egui::Button::new("Моите дългове").fill(Color32::from_rgb(0, 102, 0))).clicked() {
+                            self.screen = Screen::MyDebtsOrCredits(user.id(), true);
+                        }
+                        ui.add_space(5.0);
+
+                        if ui.add_sized(button_size, egui::Button::new("Моите вземания").fill(Color32::from_rgb(102, 102, 0))).clicked() {
+                            self.screen = Screen::MyDebtsOrCredits(user.id(), false);
+                        }
+                        ui.add_space(5.0);
+
+                        if ui.add_sized(button_size, egui::Button::new("Известия").fill(Color32::from_rgb(153, 76, 0))).clicked() {
+                            self.screen = Screen::MyNotifications(user.id());
+                        }
+
+                        ui.add_space(5.0);
+                        if ui.add_sized(button_size, egui::Button::new("Изход").fill(Color32::from_rgb(153, 0, 0))).clicked() {
+                            self.screen = Screen::Login;
+                        }
+
+                    });
+                });
             });
-
-            ui.horizontal(|ui| {
-                if ui.button("Моите групи ").clicked() {
-                    self.screen = Screen::MyGroups(user.id());
-                }
-                if ui.button("Създай група").clicked() {
-                    self.screen = Screen::CreateGroup(user.id());
-                }
-            });
-
-            ui.horizontal(|ui| {
-                if ui.button("Моите дългове").clicked() {
-                    self.screen = Screen::MyDebtsOrCredits(user.id(), true);
-                }
-                if ui.button("Моите вземания").clicked() {
-                    self.screen = Screen::MyDebtsOrCredits(user.id(), false);
-                }
-            });
-
-            if ui.button("Известия").clicked() {
-                self.screen = Screen::MyNotifications(user.id());
-            }
-
-
-
         });
-
-
     }
+
+
 
     fn show_my_notifications(&mut self, ctx: &egui::Context, user_id: i32) {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading("Известия");
+            ui.add_space(20.0);
             if !self.notification_loading {
                 self.notifications = Vec::new();
                 let _ = self.tx_cmd.send(ServerCommand::ShowNotification {
@@ -311,11 +341,23 @@ impl MyApp {
             }
 
             for notification in &self.notifications {
-                ui.label(notification.message());
+                UiFrame::group(ui.style())
+                    .fill(Color32::from_rgb(0, 102, 204))
+                    .rounding(6.0)
+                    .inner_margin(Margin::same(6.0))
+                    .show(ui, |ui| {
+                        ui.label(RichText::new(notification.message())
+                            .color(Color32::WHITE));
+                    });
+                ui.add_space(10.0);
             }
 
             ui.add_enabled_ui(!self.loading, |ui| {
-                if ui.button("Назад").clicked() {
+                if ui.add(
+                    egui::Button::new(
+                        RichText::new("Назад").color(Color32::WHITE)
+                    ).fill(Color32::from_rgb(30, 60, 150))
+                ).clicked() {
                     let owner_id = user_id;
                     let _ = self.tx_cmd.send(ServerCommand::GetUser { owner_id });
                     self.process_backend_responses(ctx);
@@ -349,7 +391,11 @@ impl MyApp {
 
                 ui.horizontal(|ui| {
                     ui.text_edit_singleline(&mut self.search_query);
-                    if ui.button("Търси").clicked() {
+                    if ui.add(
+                        egui::Button::new(
+                            RichText::new("Търси").color(Color32::WHITE)
+                        ).fill(Color32::from_rgb(0, 102, 0))
+                    ).clicked() {
                         let _ = self.tx_cmd.send(ServerCommand::SearchUsers {
                             query: std::mem::take(&mut self.search_query),
                         });
@@ -379,7 +425,7 @@ impl MyApp {
                         ui.label(format!("{} ({})", user.username(), user.email()));
 
                         if user.is_loyal_payer() {
-                            ui.colored_label(egui::Color32::GOLD, "⭐");
+                            ui.colored_label(Color32::GOLD, "⭐");
                         }
                     });
                 }
@@ -389,8 +435,12 @@ impl MyApp {
                 }
 
                 ui.separator();
-
-                if ui.button("Създай групата").clicked() {
+                ui.add_space(10.0);
+                if ui.add(
+                    egui::Button::new(
+                        RichText::new("Създай групата").color(Color32::WHITE)
+                    ).fill(Color32::from_rgb(30, 60, 150))
+                ).clicked() {
                     if !self.group_name.trim().is_empty() && !self.selected_users.is_empty() {
                         let _ = self.tx_cmd.send(ServerCommand::CreateGroup {
                             name: std::mem::take(&mut self.group_name),
@@ -408,12 +458,17 @@ impl MyApp {
                     }
                 }
 
-                if ui.button("Назад").clicked() {
+                ui.add_space(5.0);
+                if ui.add(
+                    egui::Button::new(
+                        RichText::new("Назад").color(Color32::WHITE)
+                    ).fill(Color32::from_rgb(0, 102, 0))
+                ).clicked() {
                     let _ = self.tx_cmd.send(ServerCommand::GetUser { owner_id });
                     self.loading = true;
                     self.process_backend_responses(ctx);
-
                 }
+
             });
 
             if self.loading {
@@ -429,6 +484,8 @@ impl MyApp {
     fn show_my_groups(&mut self, ctx: &egui::Context, user_id: i32) {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading("Моите групи");
+            ui.add_space(10.0);
+
             if !self.group_loading {
                 self.my_groups = Vec::new();
                 let _ = self.tx_cmd.send(ServerCommand::ShowGroups {
@@ -442,17 +499,26 @@ impl MyApp {
             for group in &self.my_groups {
                 ui.horizontal(|ui| {
                     ui.label(format!("{}", group.groupname()));
-                    if ui.button("Добави разход").clicked() {
+                    if ui.add(
+                        egui::Button::new(
+                            RichText::new("Добави разход").color(Color32::WHITE)
+                        ).fill(Color32::from_rgb(30, 60, 150))
+                    ).clicked() {
                         self.screen = Screen::AddExp(user_id, group.id());
                     }
+
                 });
 
                 ui.separator();
             }
 
             ui.add_enabled_ui(!self.loading, |ui| {
-
-                if ui.button("Назад").clicked() {
+                ui.add_space(10.0);
+                if ui.add(
+                    egui::Button::new(
+                        RichText::new("Назад").color(Color32::WHITE)
+                    ).fill(Color32::from_rgb(0, 102, 0))
+                ).clicked() {
                     let owner_id = user_id;
                     let _ = self.tx_cmd.send(ServerCommand::GetUser { owner_id });
                     self.group_loading = false;
@@ -495,9 +561,12 @@ impl MyApp {
             ui.label("Крайна дата за изплащане:");
             ui.text_edit_singleline(&mut self.exp_due_date);
 
-
-            if ui.button("Добави разход").clicked() {
-
+            ui.add_space(10.0);
+            if ui.add(
+                egui::Button::new(
+                    RichText::new("Добави разход").color(Color32::WHITE)
+                ).fill(Color32::from_rgb(30, 60, 150))
+            ).clicked() {
                 let _ = self.tx_cmd.send(ServerCommand::AddExpenses {
                     user_id,
                     group_id,
@@ -506,10 +575,14 @@ impl MyApp {
                     due_date: std::mem::take(&mut self.exp_due_date),
                 });
                 self.loading = true;
-
             }
 
-            if ui.button("Назад").clicked() {
+            ui.add_space(5.0);
+            if ui.add(
+                egui::Button::new(
+                    RichText::new("Назад").color(Color32::WHITE)
+                ).fill(Color32::from_rgb(0, 102, 0))
+            ).clicked() {
                 self.screen = Screen::MyGroups(user_id);
             }
 
@@ -562,7 +635,11 @@ impl MyApp {
                         debt_or_credit.group_name()
                     ));
                     ui.separator();
-                    if ui.button("Потвърждаване на плащане").clicked() {
+                    if ui.add(
+                        egui::Button::new(
+                            RichText::new("Потвърждаване на плащане").color(Color32::WHITE)
+                        ).fill(Color32::from_rgb(30, 60, 150))
+                    ).clicked() {
                         let debt_id = debt_or_credit.id();
                         let _ = self.tx_cmd.send(ServerCommand::PaymentConfirmation {
                             user_id,
@@ -570,20 +647,26 @@ impl MyApp {
                         });
                         self.debts_or_credits_loading = false;
                     }
+
                 });
 
                 ui.separator();
             }
 
             ui.add_enabled_ui(!self.loading, |ui| {
-
-                if ui.button("Назад").clicked() {
+                ui.add_space(10.0);
+                if ui.add(
+                    egui::Button::new(
+                        RichText::new("Назад").color(Color32::WHITE)
+                    ).fill(Color32::from_rgb(0, 102, 0))
+                ).clicked() {
                     let owner_id = user_id;
                     let _ = self.tx_cmd.send(ServerCommand::GetUser { owner_id });
                     self.debts_or_credits_loading = false;
                     self.loading = true;
                     self.process_backend_responses(ctx);
                 }
+
             });
 
             if self.loading {
