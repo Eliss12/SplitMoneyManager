@@ -7,9 +7,10 @@ use crate::user::{User};
 use crate::group::Group;
 use rusqlite::OptionalExtension;
 use crate::expenses::Expenses;
+use crate::notification::Notification;
 
 pub fn init_db() -> Result<Connection> {
-    let conn = Connection::open("Test.db")?;
+    let conn = Connection::open("Test5.db")?;
 
     conn.execute_batch(
         "
@@ -52,7 +53,16 @@ pub fn init_db() -> Result<Connection> {
             FOREIGN KEY(to_id) REFERENCES users(id),
             FOREIGN KEY(group_id) REFERENCES groups(id)
         );
-        "
+
+        CREATE TABLE IF NOT EXISTS notifications (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        message TEXT NOT NULL,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        shown BOOLEAN DEFAULT 0,
+        FOREIGN KEY(user_id) REFERENCES users(id)
+        );
+      "
     )?;
 
     Ok(conn)
@@ -486,3 +496,61 @@ pub fn payment_confirmation(conn: &Connection, user_id: i32, debt_id: i32) -> st
         Ok("Потвърдено. Очаква се другата страна да потвърди.".to_string())
     }
 }
+
+pub fn get_user_notifications(conn: &Connection, user_id: i32) -> Result<Vec<Notification>, String> {
+    let mut stmt = conn.prepare(
+        "SELECT amount, due_date
+         FROM debts
+         WHERE from_id = ?1
+           AND settled = 0
+           AND due_date < date('now')"
+    ).map_err(|e| e.to_string())?;
+
+    let overdue: Vec<(f32, String)> = stmt.query_map([user_id], |row| {
+        Ok(
+            (row.get(0)?,
+             row.get(1)?,)
+        )
+    }).map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+
+    for (amount, due_date) in overdue {
+        let message = format!("Имате просрочен дълг от {:.2} лв. със срок {}", amount, due_date);
+        conn.execute(
+            "INSERT INTO notifications (user_id, message)
+             VALUES (?1, ?2)",params![user_id, message]
+        ).map_err(|e| e.to_string())?;
+    }
+
+    conn.execute(
+        "DELETE FROM notifications WHERE user_id = ?1 AND shown = 1",
+        params![user_id],
+    ).map_err(|e| e.to_string())?;
+
+    let mut stmt = conn.prepare(
+        "SELECT id, message FROM notifications
+         WHERE user_id = ?1 AND shown = 0
+         ORDER BY created_at ASC"
+    ).map_err(|e| e.to_string())?;
+
+    let notes = stmt.query_map([user_id], |row| {
+        Ok(Notification::new
+            (row.get(0)?,
+             row.get(1)?)
+        )
+    }).map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+
+    for note in &notes {
+        conn.execute("UPDATE notifications SET shown = 1 WHERE id = ?1", [note.id()]).map_err(|e| e.to_string())?;
+    }
+
+    if notes.is_empty() {
+        return Err("Нямате известия!".to_string());
+    }
+
+    Ok(notes)
+}
+

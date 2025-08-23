@@ -4,6 +4,7 @@ use crate::user::User;
 use eframe::{egui, App, Frame};
 use crate::group::Group;
 use crate::expenses::Expenses;
+use crate::notification::Notification;
 
 #[derive(Clone)]
 pub enum Screen {
@@ -14,6 +15,7 @@ pub enum Screen {
     MyGroups(i32),
     AddExp(i32, i32),
     MyDebtsOrCredits(i32, bool),
+    MyNotifications(i32),
 }
 
 pub struct MyApp {
@@ -40,7 +42,9 @@ pub struct MyApp {
     exp_due_date: String,
 
     my_debts_or_credits: Vec<Expenses>,
+    notifications: Vec<Notification>,
     loading: bool,
+    notification_loading: bool,
     success_message: Option<String>,
     success_time: Option<std::time::Instant>,
     error_message: Option<String>,
@@ -69,7 +73,9 @@ impl Default for MyApp {
             exp_description: String::new(),
             exp_due_date: String::new(),
             my_debts_or_credits: Vec::new(),
+            notifications: Vec::new(),
             loading: false,
+            notification_loading: false,
             success_message: None,
             success_time: None,
             error_message: None,
@@ -92,6 +98,7 @@ impl App for MyApp {
             Screen::AddExp(user_id, group_id) => self.show_add_expenses(ctx, user_id, group_id),
             Screen::MyDebtsOrCredits(user_id, true) => self.show_my_debts_or_credits(ctx, user_id, true),
             Screen::MyDebtsOrCredits(user_id, false) => self.show_my_debts_or_credits(ctx, user_id, false),
+            Screen::MyNotifications(user_id) => self.show_my_notifications(ctx, user_id),
         }
     }
 }
@@ -125,6 +132,10 @@ impl MyApp {
                 }
                 ServerResponse::Expenses(expenses) => {
                     self.my_debts_or_credits = expenses;
+                    self.loading = false;
+                }
+                ServerResponse::Notifications(notifications) => {
+                    self.notifications = notifications;
                     self.loading = false;
                 }
             }
@@ -244,6 +255,8 @@ impl MyApp {
 
     fn show_main_app(&mut self, ctx: &egui::Context, user: &User) {
         egui::CentralPanel::default().show(ctx, |ui| {
+
+
             ui.horizontal(|ui| {
                 ui.heading(format!("Добре дошли, {}!", user.username()));
                 if ui.button("Изход").clicked() {
@@ -269,7 +282,53 @@ impl MyApp {
                 }
             });
 
+            if ui.button("Известия").clicked() {
+                self.screen = Screen::MyNotifications(user.id());
+            }
+
+
+
         });
+
+
+    }
+
+    fn show_my_notifications(&mut self, ctx: &egui::Context, user_id: i32) {
+        egui::CentralPanel::default().show(ctx, |ui| {
+            ui.heading("Известия");
+            if !self.notification_loading {
+                self.notifications = Vec::new();
+                let _ = self.tx_cmd.send(ServerCommand::ShowNotification {
+                    user_id,
+                });
+                self.notification_loading = true;
+                self.loading = true;
+                self.process_backend_responses(ctx);
+            }
+
+            for notification in &self.notifications {
+                ui.label(notification.message());
+            }
+
+            ui.add_enabled_ui(!self.loading, |ui| {
+                if ui.button("Назад").clicked() {
+                    let owner_id = user_id;
+                    let _ = self.tx_cmd.send(ServerCommand::GetUser { owner_id });
+                    self.process_backend_responses(ctx);
+                    self.notification_loading = false;
+                    self.loading = true;
+                }
+            });
+            if self.loading {
+                ui.separator();
+                ui.label("Моля изчакайте...");
+            }
+
+            self.update_messages(ctx);
+            self.show_messages(ui);
+
+        });
+
     }
 
     fn show_create_group(&mut self, ctx: &egui::Context, owner_id: i32) {
@@ -349,6 +408,7 @@ impl MyApp {
                     let _ = self.tx_cmd.send(ServerCommand::GetUser { owner_id });
                     self.loading = true;
                     self.process_backend_responses(ctx);
+
                 }
             });
 
@@ -481,7 +541,7 @@ impl MyApp {
                 for debt_or_credit in &self.my_debts_or_credits {
                     ui.horizontal(|ui| {
                         ui.label(format!(
-                            "{}: {}\nСума: {:.2} лв.\n Описание: {}\nКрайна дата: {}\nГрупа: {}",
+                            "{}: {}\nСума: {:.2} лв.\nОписание: {}\nКрайна дата: {}\nГрупа: {}",
                             user,
                             debt_or_credit.username(),
                             debt_or_credit.amount(),

@@ -1,10 +1,11 @@
 use std::sync::mpsc::{Sender, Receiver};
 use std::sync::mpsc;
 use std::thread;
-use crate::db::{init_db, register_user, login_user, create_group, search_users, get_user_by_id, get_user_groups, add_expenses, get_user_debts_or_credits, payment_confirmation};
+use crate::db::{init_db, register_user, login_user, create_group, search_users, get_user_by_id, get_user_groups, add_expenses, get_user_debts_or_credits, payment_confirmation, get_user_notifications};
 use crate::group::Group;
 use crate::user::User;
 use crate::expenses::Expenses;
+use crate::notification::Notification;
 
 #[derive(Debug)]
 pub enum ServerCommand {
@@ -24,6 +25,7 @@ pub enum ServerCommand {
     AddExpenses { user_id: i32, group_id: i32, amount: f32, description: String, due_date: String },
     ShowDebtsOrCredits { user_id: i32 , is_debt: bool},
     PaymentConfirmation { user_id: i32, debt_id: i32 },
+    ShowNotification { user_id: i32 },
 }
 
 #[derive(Debug)]
@@ -34,6 +36,7 @@ pub enum ServerResponse {
     Users(Vec<User>),
     Groups(Vec<Group>),
     Expenses(Vec<Expenses>),
+    Notifications(Vec<Notification>),
 }
 
 pub fn start_backend() -> (Sender<ServerCommand>, Receiver<ServerResponse>) {
@@ -98,6 +101,12 @@ pub fn start_backend() -> (Sender<ServerCommand>, Receiver<ServerResponse>) {
                 ServerCommand::PaymentConfirmation { user_id , debt_id } => {
                     match payment_confirmation(&conn, user_id, debt_id) {
                         Ok(string) => tx_resp.send(ServerResponse::Ok(string)).unwrap(),
+                        Err(e) => tx_resp.send(ServerResponse::Err(e)).unwrap(),
+                    }
+                }
+                ServerCommand::ShowNotification { user_id } => {
+                    match get_user_notifications(&conn, user_id) {
+                        Ok(notifications) => tx_resp.send(ServerResponse::Notifications(notifications)).unwrap(),
                         Err(e) => tx_resp.send(ServerResponse::Err(e)).unwrap(),
                     }
                 }

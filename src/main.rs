@@ -6,6 +6,7 @@ mod app;
 mod user;
 mod group;
 mod expenses;
+mod notification;
 
 use app::MyApp;
 
