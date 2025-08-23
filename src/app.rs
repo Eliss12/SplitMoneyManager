@@ -281,260 +281,270 @@ impl MyApp {
         use egui::Color32;
 
         egui::CentralPanel::default().show(ctx, |ui| {
-            ui.vertical_centered(|ui| {
-                ui.heading(format!("Добре дошли, {}!", user.username()));
-                ui.add_space(20.0);
-
-                ui.group(|ui| {
+            egui::ScrollArea::vertical()
+                .auto_shrink([false; 2])
+                .show(ui, |ui| {
                     ui.vertical_centered(|ui| {
-                        let button_size = [200.0, 30.0];
+                        ui.heading(format!("Добре дошли, {}!", user.username()));
+                        ui.add_space(20.0);
 
-                        if ui.add_sized(button_size, egui::Button::new("Моите групи").fill(Color32::from_rgb(30, 60, 150))).clicked() {
-                            self.screen = Screen::MyGroups(user.id());
-                        }
-                        ui.add_space(5.0);
+                        ui.group(|ui| {
+                            ui.vertical_centered(|ui| {
+                                let button_size = [200.0, 30.0];
 
-                        if ui.add_sized(button_size, egui::Button::new("Създай група").fill(Color32::from_rgb(0, 102, 102))).clicked() {
-                            self.screen = Screen::CreateGroup(user.id());
-                        }
-                        ui.add_space(5.0);
+                                if ui.add_sized(button_size, egui::Button::new("Моите групи").fill(Color32::from_rgb(30, 60, 150))).clicked() {
+                                    self.screen = Screen::MyGroups(user.id());
+                                }
+                                ui.add_space(5.0);
 
-                        if ui.add_sized(button_size, egui::Button::new("Моите дългове").fill(Color32::from_rgb(0, 102, 0))).clicked() {
-                            self.screen = Screen::MyDebtsOrCredits(user.id(), true);
-                        }
-                        ui.add_space(5.0);
+                                if ui.add_sized(button_size, egui::Button::new("Създай група").fill(Color32::from_rgb(0, 102, 102))).clicked() {
+                                    self.screen = Screen::CreateGroup(user.id());
+                                }
+                                ui.add_space(5.0);
 
-                        if ui.add_sized(button_size, egui::Button::new("Моите вземания").fill(Color32::from_rgb(102, 102, 0))).clicked() {
-                            self.screen = Screen::MyDebtsOrCredits(user.id(), false);
-                        }
-                        ui.add_space(5.0);
+                                if ui.add_sized(button_size, egui::Button::new("Моите дългове").fill(Color32::from_rgb(0, 102, 0))).clicked() {
+                                    self.screen = Screen::MyDebtsOrCredits(user.id(), true);
+                                }
+                                ui.add_space(5.0);
 
-                        if ui.add_sized(button_size, egui::Button::new("Известия").fill(Color32::from_rgb(153, 76, 0))).clicked() {
-                            self.screen = Screen::MyNotifications(user.id());
-                        }
+                                if ui.add_sized(button_size, egui::Button::new("Моите вземания").fill(Color32::from_rgb(102, 102, 0))).clicked() {
+                                    self.screen = Screen::MyDebtsOrCredits(user.id(), false);
+                                }
+                                ui.add_space(5.0);
 
-                        ui.add_space(5.0);
-                        if ui.add_sized(button_size, egui::Button::new("Изход").fill(Color32::from_rgb(153, 0, 0))).clicked() {
-                            self.screen = Screen::Login;
-                        }
+                                if ui.add_sized(button_size, egui::Button::new("Известия").fill(Color32::from_rgb(153, 76, 0))).clicked() {
+                                    self.screen = Screen::MyNotifications(user.id());
+                                }
 
+                                ui.add_space(5.0);
+                                if ui.add_sized(button_size, egui::Button::new("Изход").fill(Color32::from_rgb(153, 0, 0))).clicked() {
+                                    self.screen = Screen::Login;
+                                }
+                            });
+                        });
                     });
-                });
-            });
+           });
         });
     }
-
 
 
     fn show_my_notifications(&mut self, ctx: &egui::Context, user_id: i32) {
         egui::CentralPanel::default().show(ctx, |ui| {
-            ui.heading("Известия");
-            ui.add_space(20.0);
-            if !self.notification_loading {
-                self.notifications = Vec::new();
-                let _ = self.tx_cmd.send(ServerCommand::ShowNotification {
-                    user_id,
-                });
-                self.notification_loading = true;
-                self.loading = true;
-                self.process_backend_responses(ctx);
-            }
+            egui::ScrollArea::vertical()
+                .auto_shrink([false; 2])
+                .show(ui, |ui| {
+                    ui.heading("Известия");
+                    ui.add_space(20.0);
+                    if !self.notification_loading {
+                        self.notifications = Vec::new();
+                        let _ = self.tx_cmd.send(ServerCommand::ShowNotification {
+                            user_id,
+                        });
+                        self.notification_loading = true;
+                        self.loading = true;
+                        self.process_backend_responses(ctx);
+                    }
 
-            for notification in &self.notifications {
-                UiFrame::group(ui.style())
-                    .fill(Color32::from_rgb(0, 102, 204))
-                    .rounding(6.0)
-                    .inner_margin(Margin::same(6.0))
-                    .show(ui, |ui| {
-                        ui.label(RichText::new(notification.message())
-                            .color(Color32::WHITE));
+                    for notification in &self.notifications {
+                        UiFrame::group(ui.style())
+                            .fill(Color32::from_rgb(0, 102, 204))
+                            .rounding(6.0)
+                            .inner_margin(Margin::same(6.0))
+                            .show(ui, |ui| {
+                                ui.label(RichText::new(notification.message())
+                                    .color(Color32::WHITE));
+                            });
+                        ui.add_space(10.0);
+                    }
+
+                    ui.add_enabled_ui(!self.loading, |ui| {
+                        if ui.add(
+                            egui::Button::new(
+                                RichText::new("Назад").color(Color32::WHITE)
+                            ).fill(Color32::from_rgb(30, 60, 150))
+                        ).clicked() {
+                            let owner_id = user_id;
+                            let _ = self.tx_cmd.send(ServerCommand::GetUser { owner_id });
+                            self.process_backend_responses(ctx);
+                            self.notification_loading = false;
+                            self.loading = true;
+                        }
                     });
-                ui.add_space(10.0);
-            }
+                    if self.loading {
+                        ui.separator();
+                        ui.label("Моля изчакайте...");
+                    }
 
-            ui.add_enabled_ui(!self.loading, |ui| {
-                if ui.add(
-                    egui::Button::new(
-                        RichText::new("Назад").color(Color32::WHITE)
-                    ).fill(Color32::from_rgb(30, 60, 150))
-                ).clicked() {
-                    let owner_id = user_id;
-                    let _ = self.tx_cmd.send(ServerCommand::GetUser { owner_id });
-                    self.process_backend_responses(ctx);
-                    self.notification_loading = false;
-                    self.loading = true;
-                }
+                    self.update_messages(ctx);
+                    self.show_messages(ui);
             });
-            if self.loading {
-                ui.separator();
-                ui.label("Моля изчакайте...");
-            }
-
-            self.update_messages(ctx);
-            self.show_messages(ui);
-
         });
-
     }
 
     fn show_create_group(&mut self, ctx: &egui::Context, owner_id: i32) {
         egui::CentralPanel::default().show(ctx, |ui| {
-            ui.heading("Създаване на група");
+            egui::ScrollArea::vertical()
+                .auto_shrink([false; 2])
+                .show(ui, |ui| {
+                    ui.heading("Създаване на група");
 
-            ui.add_enabled_ui(!self.loading, |ui| {
-                ui.horizontal(|ui| {
-                    ui.label("Име на групата:");
-                    ui.text_edit_singleline(&mut self.group_name);
-                });
-
-                ui.separator();
-
-                ui.horizontal(|ui| {
-                    ui.text_edit_singleline(&mut self.search_query);
-                    if ui.add(
-                        egui::Button::new(
-                            RichText::new("Търси").color(Color32::WHITE)
-                        ).fill(Color32::from_rgb(0, 102, 0))
-                    ).clicked() {
-                        let _ = self.tx_cmd.send(ServerCommand::SearchUsers {
-                            query: std::mem::take(&mut self.search_query),
+                    ui.add_enabled_ui(!self.loading, |ui| {
+                        ui.horizontal(|ui| {
+                            ui.label("Име на групата:");
+                            ui.text_edit_singleline(&mut self.group_name);
                         });
-                        self.loading = true;
-                        self.process_backend_responses(ctx);
-                    }
-                });
 
-                ui.separator();
+                        ui.separator();
 
-                for user in &self.search_results {
-                    let mut checked = self.selected_users.contains(&user.id());
+                        ui.horizontal(|ui| {
+                            ui.text_edit_singleline(&mut self.search_query);
+                            if ui.add(
+                                egui::Button::new(
+                                    RichText::new("Търси").color(Color32::WHITE)
+                                ).fill(Color32::from_rgb(0, 102, 0))
+                            ).clicked() {
+                                let _ = self.tx_cmd.send(ServerCommand::SearchUsers {
+                                    query: std::mem::take(&mut self.search_query),
+                                });
+                                self.loading = true;
+                                self.process_backend_responses(ctx);
+                            }
+                        });
 
-                    ui.horizontal(|ui| {
+                        ui.separator();
 
-                        if ui.checkbox(&mut checked, "").changed() {
-                            if checked {
-                                if !self.selected_users.contains(&user.id()) {
-                                    self.selected_users.push(user.id());
+                        for user in &self.search_results {
+                            let mut checked = self.selected_users.contains(&user.id());
+
+                            ui.horizontal(|ui| {
+
+                                if ui.checkbox(&mut checked, "").changed() {
+                                    if checked {
+                                        if !self.selected_users.contains(&user.id()) {
+                                            self.selected_users.push(user.id());
+                                        }
+                                    }
+                                    else {
+                                        self.selected_users.retain(|&id| id != user.id());
+                                    }
                                 }
+
+                                ui.label(format!("{} ({})", user.username(), user.email()));
+
+                                if user.is_loyal_payer() {
+                                    ui.colored_label(Color32::GOLD, "⭐");
+                                }
+                            });
+                        }
+
+                        if !self.selected_users.contains(&owner_id) {
+                            self.selected_users.push(owner_id);
+                        }
+
+                        ui.separator();
+                        ui.add_space(10.0);
+                        if ui.add(
+                            egui::Button::new(
+                                RichText::new("Създай групата").color(Color32::WHITE)
+                            ).fill(Color32::from_rgb(30, 60, 150))
+                        ).clicked() {
+                            if !self.group_name.trim().is_empty() && !self.selected_users.is_empty() {
+                                let _ = self.tx_cmd.send(ServerCommand::CreateGroup {
+                                    name: std::mem::take(&mut self.group_name),
+                                    owner_id,
+                                    members: std::mem::take(&mut self.selected_users),
+                                });
+                                self.loading = true;
+                                self.process_backend_responses(ctx);
                             }
                             else {
-                                self.selected_users.retain(|&id| id != user.id());
+                                self.error_message = Some(
+                                    "Моля въведете име и изберете поне един член.".to_string(),
+                                );
+                                self.error_time = Some(std::time::Instant::now());
                             }
                         }
 
-                        ui.label(format!("{} ({})", user.username(), user.email()));
-
-                        if user.is_loyal_payer() {
-                            ui.colored_label(Color32::GOLD, "⭐");
+                        ui.add_space(5.0);
+                        if ui.add(
+                            egui::Button::new(
+                                RichText::new("Назад").color(Color32::WHITE)
+                            ).fill(Color32::from_rgb(0, 102, 0))
+                        ).clicked() {
+                            let _ = self.tx_cmd.send(ServerCommand::GetUser { owner_id });
+                            self.loading = true;
+                            self.process_backend_responses(ctx);
                         }
+
                     });
-                }
 
-                if !self.selected_users.contains(&owner_id) {
-                    self.selected_users.push(owner_id);
-                }
-
-                ui.separator();
-                ui.add_space(10.0);
-                if ui.add(
-                    egui::Button::new(
-                        RichText::new("Създай групата").color(Color32::WHITE)
-                    ).fill(Color32::from_rgb(30, 60, 150))
-                ).clicked() {
-                    if !self.group_name.trim().is_empty() && !self.selected_users.is_empty() {
-                        let _ = self.tx_cmd.send(ServerCommand::CreateGroup {
-                            name: std::mem::take(&mut self.group_name),
-                            owner_id,
-                            members: std::mem::take(&mut self.selected_users),
-                        });
-                        self.loading = true;
-                        self.process_backend_responses(ctx);
+                    if self.loading {
+                        ui.separator();
+                        ui.label("Моля изчакайте...");
                     }
-                    else {
-                        self.error_message = Some(
-                            "Моля въведете име и изберете поне един член.".to_string(),
-                        );
-                        self.error_time = Some(std::time::Instant::now());
-                    }
-                }
 
-                ui.add_space(5.0);
-                if ui.add(
-                    egui::Button::new(
-                        RichText::new("Назад").color(Color32::WHITE)
-                    ).fill(Color32::from_rgb(0, 102, 0))
-                ).clicked() {
-                    let _ = self.tx_cmd.send(ServerCommand::GetUser { owner_id });
-                    self.loading = true;
-                    self.process_backend_responses(ctx);
-                }
-
-            });
-
-            if self.loading {
-                ui.separator();
-                ui.label("Моля изчакайте...");
-            }
-
-            self.update_messages(ctx);
-            self.show_messages(ui);
+                    self.update_messages(ctx);
+                    self.show_messages(ui);
+                });
         });
     }
 
     fn show_my_groups(&mut self, ctx: &egui::Context, user_id: i32) {
         egui::CentralPanel::default().show(ctx, |ui| {
-            ui.heading("Моите групи");
-            ui.add_space(10.0);
+            egui::ScrollArea::vertical()
+                .auto_shrink([false; 2])
+                .show(ui, |ui| {
+                    ui.heading("Моите групи");
+                    ui.add_space(10.0);
 
-            if !self.group_loading {
-                self.my_groups = Vec::new();
-                let _ = self.tx_cmd.send(ServerCommand::ShowGroups {
-                    user_id,
-                });
-                self.group_loading = true;
-                self.loading = true;
-                self.process_backend_responses(ctx);
-            }
-
-            for group in &self.my_groups {
-                ui.horizontal(|ui| {
-                    ui.label(format!("{}", group.groupname()));
-                    if ui.add(
-                        egui::Button::new(
-                            RichText::new("Добави разход").color(Color32::WHITE)
-                        ).fill(Color32::from_rgb(30, 60, 150))
-                    ).clicked() {
-                        self.screen = Screen::AddExp(user_id, group.id());
+                    if !self.group_loading {
+                        self.my_groups = Vec::new();
+                        let _ = self.tx_cmd.send(ServerCommand::ShowGroups {
+                            user_id,
+                        });
+                        self.group_loading = true;
+                        self.loading = true;
+                        self.process_backend_responses(ctx);
                     }
 
-                });
+                    for group in &self.my_groups {
+                        ui.horizontal(|ui| {
+                            ui.label(format!("{}", group.groupname()));
+                            if ui.add(
+                                egui::Button::new(
+                                    RichText::new("Добави разход").color(Color32::WHITE)
+                                ).fill(Color32::from_rgb(30, 60, 150))
+                            ).clicked() {
+                                self.screen = Screen::AddExp(user_id, group.id());
+                            }
+                        });
 
-                ui.separator();
-            }
+                        ui.separator();
+                    }
 
-            ui.add_enabled_ui(!self.loading, |ui| {
-                ui.add_space(10.0);
-                if ui.add(
-                    egui::Button::new(
-                        RichText::new("Назад").color(Color32::WHITE)
-                    ).fill(Color32::from_rgb(0, 102, 0))
-                ).clicked() {
-                    let owner_id = user_id;
-                    let _ = self.tx_cmd.send(ServerCommand::GetUser { owner_id });
-                    self.group_loading = false;
-                    self.loading = true;
-                    self.process_backend_responses(ctx);
-                }
+                    ui.add_enabled_ui(!self.loading, |ui| {
+                        ui.add_space(10.0);
+                        if ui.add(
+                            egui::Button::new(
+                                RichText::new("Назад").color(Color32::WHITE)
+                            ).fill(Color32::from_rgb(0, 102, 0))
+                        ).clicked() {
+                            let owner_id = user_id;
+                            let _ = self.tx_cmd.send(ServerCommand::GetUser { owner_id });
+                            self.group_loading = false;
+                            self.loading = true;
+                            self.process_backend_responses(ctx);
+                        }
+                    });
+
+                    if self.loading {
+                        ui.separator();
+                        ui.label("Моля изчакайте...");
+                    }
+
+                    self.update_messages(ctx);
+                    self.show_messages(ui);
             });
-
-            if self.loading {
-                ui.separator();
-                ui.label("Моля изчакайте...");
-            }
-
-            self.update_messages(ctx);
-            self.show_messages(ui);
-
         });
     }
 
@@ -600,83 +610,83 @@ impl MyApp {
 
     fn show_my_debts_or_credits(&mut self, ctx: &egui::Context, user_id: i32, is_debt: bool) {
         egui::CentralPanel::default().show(ctx, |ui| {
-            let heading;
-            let user;
-            if is_debt {
-                heading = "Моите дългове";
-                user = "Кредитор";
-            }
-            else {
-                heading = "Моите вземания";
-                user = "Длъжник";
-            }
-            ui.heading(heading);
+            egui::ScrollArea::vertical()
+                .auto_shrink([false; 2])
+                .show(ui, |ui| {
+                    let heading;
+                    let user;
+                    if is_debt {
+                        heading = "Моите дългове";
+                        user = "Кредитор";
+                    } else {
+                        heading = "Моите вземания";
+                        user = "Длъжник";
+                    }
+                    ui.heading(heading);
 
-            if !self.debts_or_credits_loading {
-                self.my_debts_or_credits = Vec::new();
-                let _ = self.tx_cmd.send(ServerCommand::ShowDebtsOrCredits {
-                    user_id,
-                    is_debt,
-                });
-                self.debts_or_credits_loading = true;
-                self.loading = true;
-                self.process_backend_responses(ctx);
-            }
-
-            for debt_or_credit in &self.my_debts_or_credits {
-                ui.horizontal(|ui| {
-                    ui.label(format!(
-                        "{}: {}\nСума: {:.2} лв.\nОписание: {}\nКрайна дата: {}\nГрупа: {}",
-                        user,
-                        debt_or_credit.username(),
-                        debt_or_credit.amount(),
-                        debt_or_credit.description(),
-                        debt_or_credit.due_date(),
-                        debt_or_credit.group_name()
-                    ));
-                    ui.separator();
-                    if ui.add(
-                        egui::Button::new(
-                            RichText::new("Потвърждаване на плащане").color(Color32::WHITE)
-                        ).fill(Color32::from_rgb(30, 60, 150))
-                    ).clicked() {
-                        let debt_id = debt_or_credit.id();
-                        let _ = self.tx_cmd.send(ServerCommand::PaymentConfirmation {
+                    if !self.debts_or_credits_loading {
+                        self.my_debts_or_credits = Vec::new();
+                        let _ = self.tx_cmd.send(ServerCommand::ShowDebtsOrCredits {
                             user_id,
-                            debt_id,
+                            is_debt,
                         });
-                        self.debts_or_credits_loading = false;
+                        self.debts_or_credits_loading = true;
+                        self.loading = true;
+                        self.process_backend_responses(ctx);
                     }
 
-                });
+                    for debt_or_credit in &self.my_debts_or_credits {
+                        ui.horizontal(|ui| {
+                            ui.label(format!(
+                                "{}: {}\nСума: {:.2} лв.\nОписание: {}\nКрайна дата: {}\nГрупа: {}",
+                                user,
+                                debt_or_credit.username(),
+                                debt_or_credit.amount(),
+                                debt_or_credit.description(),
+                                debt_or_credit.due_date(),
+                                debt_or_credit.group_name()
+                            ));
+                            ui.separator();
+                            if ui.add(
+                                egui::Button::new(
+                                    RichText::new("Потвърждаване на плащане").color(Color32::WHITE)
+                                ).fill(Color32::from_rgb(30, 60, 150))
+                            ).clicked() {
+                                let debt_id = debt_or_credit.id();
+                                let _ = self.tx_cmd.send(ServerCommand::PaymentConfirmation {
+                                    user_id,
+                                    debt_id,
+                                });
+                                self.debts_or_credits_loading = false;
+                            }
+                        });
 
-                ui.separator();
-            }
+                        ui.separator();
+                    }
 
-            ui.add_enabled_ui(!self.loading, |ui| {
-                ui.add_space(10.0);
-                if ui.add(
-                    egui::Button::new(
-                        RichText::new("Назад").color(Color32::WHITE)
-                    ).fill(Color32::from_rgb(0, 102, 0))
-                ).clicked() {
-                    let owner_id = user_id;
-                    let _ = self.tx_cmd.send(ServerCommand::GetUser { owner_id });
-                    self.debts_or_credits_loading = false;
-                    self.loading = true;
-                    self.process_backend_responses(ctx);
-                }
+                    ui.add_enabled_ui(!self.loading, |ui| {
+                        ui.add_space(10.0);
+                        if ui.add(
+                            egui::Button::new(
+                                RichText::new("Назад").color(Color32::WHITE)
+                            ).fill(Color32::from_rgb(0, 102, 0))
+                        ).clicked() {
+                            let owner_id = user_id;
+                            let _ = self.tx_cmd.send(ServerCommand::GetUser { owner_id });
+                            self.debts_or_credits_loading = false;
+                            self.loading = true;
+                            self.process_backend_responses(ctx);
+                        }
+                    });
 
+                    if self.loading {
+                        ui.separator();
+                        ui.label("Моля изчакайте...");
+                    }
+
+                    self.update_messages(ctx);
+                    self.show_messages(ui);
             });
-
-            if self.loading {
-                ui.separator();
-                ui.label("Моля изчакайте...");
-            }
-
-            self.update_messages(ctx);
-            self.show_messages(ui);
-
         });
     }
 }
