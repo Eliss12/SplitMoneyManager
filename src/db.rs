@@ -185,6 +185,10 @@ pub fn search_users(conn: &Connection, query: &str) -> std::result::Result<Vec<U
         .collect::<std::result::Result<Vec<_>, _>>()
         .map_err(|e| e.to_string())?;
 
+    if users.is_empty() {
+        return Err("Няма такъв потребител!".to_string());
+    }
+
     Ok(users)
 }
 
