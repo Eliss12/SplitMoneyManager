@@ -10,7 +10,7 @@ use crate::expenses::Expenses;
 use crate::notification::Notification;
 
 pub fn init_db() -> Result<Connection> {
-    let conn = Connection::open("Test5.db")?;
+    let conn = Connection::open("Database.db")?;
 
     conn.execute_batch(
         "

@@ -178,14 +178,14 @@ impl MyApp {
     fn update_messages(&mut self, ctx: &egui::Context) {
 
         if let Some(start) = self.success_time {
-            if start.elapsed().as_secs() > 5 {
+            if start.elapsed().as_secs() > 3 {
                 self.success_message = None;
                 self.success_time = None;
             }
         }
 
         if let Some(start) = self.error_time {
-            if start.elapsed().as_secs() > 5 {
+            if start.elapsed().as_secs() > 3 {
                 self.error_message = None;
                 self.error_time = None;
             }
