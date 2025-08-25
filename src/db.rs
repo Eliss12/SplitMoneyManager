@@ -130,8 +130,7 @@ pub fn login_user(conn: &Connection, email: &str, password: &str) -> std::result
         let username: String = row.get(1).unwrap();
         let email: String = row.get(2).unwrap();
         let stored_hash: String = row.get(3).unwrap();
-        let on_time_payments: i32 = row.get(4).unwrap();
-        let loyal_payer: bool = row.get(5).unwrap();
+
 
         let parsed_hash = PasswordHash::new(&stored_hash)
             .map_err(|_| "Invalid password hash format".to_string())?;
@@ -140,7 +139,7 @@ pub fn login_user(conn: &Connection, email: &str, password: &str) -> std::result
             .verify_password(password.as_bytes(), &parsed_hash)
             .map_err(|_| "Невалидна парола".to_string())?;
 
-        Ok(User::new(id, username, email, stored_hash, on_time_payments, loyal_payer ))
+        Ok(User::new(id, username, email ))
     }
     else {
         Err("Не е намерен потребител".to_string())

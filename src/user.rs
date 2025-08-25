@@ -3,21 +3,17 @@ pub struct User {
     id: i32,
     username: String,
     email: String,
-    password_hash: String,
-    on_time_payments: i32,
     loyal_payer: bool,
 }
 
 impl User {
 
-    pub fn new(id: i32, username: String, email: String, password_hash: String, on_time_payments: i32, loyal_payer: bool) -> Self {
+    pub fn new(id: i32, username: String, email: String) -> Self {
         Self {
             id,
             username,
             email,
-            password_hash,
-            on_time_payments,
-            loyal_payer,
+            loyal_payer: false,
         }
     }
 
@@ -26,8 +22,6 @@ impl User {
             id,
             username,
             email,
-            password_hash: String::new(),
-            on_time_payments: 0,
             loyal_payer
         }
     }
@@ -37,8 +31,6 @@ impl User {
             id,
             username,
             email,
-            password_hash: String::new(),
-            on_time_payments: 0,
             loyal_payer: false,
         }
     }
