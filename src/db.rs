@@ -226,7 +226,6 @@ pub fn get_user_groups(conn: &Connection, user_id: i32) -> std::result::Result<V
             Ok(Group::new (
                 row.get(0)?,
                 row.get(1)?,
-                row.get(2)?,
             ))
         })
         .map_err(|e| e.to_string())?
