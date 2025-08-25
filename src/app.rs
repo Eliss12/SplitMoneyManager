@@ -19,6 +19,17 @@ pub enum Screen {
     MyNotifications(i32),
 }
 
+enum Action {
+    MainApp(User),
+    Login,
+    Register,
+    CreateGroup(i32),
+    MyGroups(i32),
+    AddExp(i32, i32),
+    MyDebtsOrCredits(i32, bool),
+    MyNotifications(i32),
+}
+
 pub struct MyApp {
     tx_cmd: Sender<ServerCommand>,
     rx_resp: Receiver<ServerResponse>,
@@ -92,18 +103,33 @@ impl Default for MyApp {
 impl App for MyApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut Frame) {
         self.process_backend_responses(ctx);
-        let current_screen = self.screen.clone();
 
-        match current_screen {
-            Screen::MainApp(user) => self.show_main_app(ctx, &user),
-            Screen::Login => self.show_login(ctx),
-            Screen::Register => self.show_register(ctx),
-            Screen::CreateGroup(user_id) => self.show_create_group(ctx, user_id),
-            Screen::MyGroups(user_id) => self.show_my_groups(ctx, user_id),
-            Screen::AddExp(user_id, group_id) => self.show_add_expenses(ctx, user_id, group_id),
-            Screen::MyDebtsOrCredits(user_id, true) => self.show_my_debts_or_credits(ctx, user_id, true),
-            Screen::MyDebtsOrCredits(user_id, false) => self.show_my_debts_or_credits(ctx, user_id, false),
-            Screen::MyNotifications(user_id) => self.show_my_notifications(ctx, user_id),
+        let action = {
+            match &self.screen {
+                Screen::MainApp(user) => Action::MainApp(user.clone()),
+                Screen::Login => Action::Login,
+                Screen::Register => Action::Register,
+                Screen::CreateGroup(user_id) => Action::CreateGroup(*user_id),
+                Screen::MyGroups(user_id) => Action::MyGroups(*user_id),
+                Screen::AddExp(user_id, group_id) => Action::AddExp(*user_id, *group_id),
+                Screen::MyDebtsOrCredits(user_id, is_debt) => {
+                    Action::MyDebtsOrCredits(*user_id, *is_debt)
+                }
+                Screen::MyNotifications(user_id) => Action::MyNotifications(*user_id),
+            }
+        };
+
+        match action {
+            Action::MainApp(user) => self.show_main_app(ctx, &user),
+            Action::Login => self.show_login(ctx),
+            Action::Register => self.show_register(ctx),
+            Action::CreateGroup(user_id) => self.show_create_group(ctx, user_id),
+            Action::MyGroups(user_id) => self.show_my_groups(ctx, user_id),
+            Action::AddExp(user_id, group_id) => self.show_add_expenses(ctx, user_id, group_id),
+            Action::MyDebtsOrCredits(user_id, is_debt) => {
+                self.show_my_debts_or_credits(ctx, user_id, is_debt)
+            }
+            Action::MyNotifications(user_id) => self.show_my_notifications(ctx, user_id),
         }
     }
 }
