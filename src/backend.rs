@@ -6,6 +6,7 @@ use crate::group::Group;
 use crate::user::User;
 use crate::expenses::Expenses;
 use crate::notification::Notification;
+use std::sync::mpsc::RecvError;
 
 #[derive(Debug)]
 pub enum ServerCommand {
@@ -46,72 +47,74 @@ pub fn start_backend() -> (Sender<ServerCommand>, Receiver<ServerResponse>) {
     thread::spawn(move || {
         let conn = init_db().expect("Failed to initialize DB");
 
-        while let Ok(cmd) = rx_cmd.recv() {
-            match cmd {
-                ServerCommand::Register { username, email, password } => {
-                    match register_user(&conn, &username, &email, &password) {
-                        Ok(_) => tx_resp.send(ServerResponse::Ok("Успешна регистрация!".into())).unwrap(),
-                        Err(e) => tx_resp.send(ServerResponse::Err(e)).unwrap(),
-                    }
-                }
-                ServerCommand::Login { email, password } => {
-                    match login_user(&conn, &email, &password) {
-                        Ok(user) => {
-                            tx_resp.send(ServerResponse::User(user)).unwrap();
+        loop {
+            match rx_cmd.recv() {
+                Ok(cmd) => {
+                    let response = match cmd {
+                        ServerCommand::Register { username, email, password } => {
+                            register_user(&conn, &username, &email, &password)
+                                .map(|_| ServerResponse::Ok("Успешна регистрация!".into()))
+                                .unwrap_or_else(ServerResponse::Err)
                         }
-                        Err(e) => tx_resp.send(ServerResponse::Err(e)).unwrap(),
+                        ServerCommand::Login { email, password } => {
+                            login_user(&conn, &email, &password)
+                                .map(ServerResponse::User)
+                                .unwrap_or_else(ServerResponse::Err)
+                        }
+                        ServerCommand::SearchUsers { query } => {
+                            search_users(&conn, &query)
+                                .map(ServerResponse::Users)
+                                .unwrap_or_else(ServerResponse::Err)
+                        }
+                        ServerCommand::CreateGroup { name, owner_id, members } => {
+                            create_group(&conn, &name, owner_id, &members)
+                                .map(|_| ServerResponse::Ok("Групата е създадена успешно!".into()))
+                                .unwrap_or_else(ServerResponse::Err)
+                        }
+                        ServerCommand::GetUser { owner_id } => {
+                            get_user_by_id(&conn, owner_id)
+                                .map(ServerResponse::User)
+                                .unwrap_or_else(ServerResponse::Err)
+                        }
+                        ServerCommand::ShowGroups { user_id } => {
+                            get_user_groups(&conn, user_id)
+                                .map(ServerResponse::Groups)
+                                .unwrap_or_else(ServerResponse::Err)
+                        }
+                        ServerCommand::AddExpenses { user_id, group_id, amount, description, due_date } => {
+                            add_expenses(&conn, user_id, group_id, amount, &description, &due_date)
+                                .map(|_| ServerResponse::Ok("Успешно добавихте разход!".into()))
+                                .unwrap_or_else(ServerResponse::Err)
+                        }
+                        ServerCommand::ShowDebtsOrCredits { user_id, is_debt } => {
+                            get_user_debts_or_credits(&conn, user_id, is_debt)
+                                .map(ServerResponse::Expenses)
+                                .unwrap_or_else(ServerResponse::Err)
+                        }
+                        ServerCommand::PaymentConfirmation { user_id, debt_id } => {
+                            payment_confirmation(&conn, user_id, debt_id)
+                                .map(ServerResponse::Ok)
+                                .unwrap_or_else(ServerResponse::Err)
+                        }
+                        ServerCommand::ShowNotification { user_id } => {
+                            get_user_notifications(&conn, user_id)
+                                .map(ServerResponse::Notifications)
+                                .unwrap_or_else(ServerResponse::Err)
+                        }
+                    };
+
+                    if let Err(e) = tx_resp.send(response) {
+                        eprintln!("Failed to send response: {}", e);
                     }
                 }
-                ServerCommand::SearchUsers { query } => {
-                    match search_users(&conn, &query) {
-                        Ok(users) => tx_resp.send(ServerResponse::Users(users)).unwrap(),
-                        Err(e) => tx_resp.send(ServerResponse::Err(e)).unwrap(),
-                    }
-                }
-                ServerCommand::CreateGroup { name, owner_id, members } => {
-                    match create_group(&conn, &name, owner_id, &members) {
-                        Ok(_) => tx_resp.send(ServerResponse::Ok("Групата е създадена успешно!".into())).unwrap(),
-                        Err(e) => tx_resp.send(ServerResponse::Err(e)).unwrap(),
-                    }
-                }
-                ServerCommand::GetUser { owner_id } => {
-                    match get_user_by_id(&conn, owner_id) {
-                        Ok(user) => tx_resp.send(ServerResponse::User(user)).unwrap(),
-                        Err(e) => tx_resp.send(ServerResponse::Err(e)).unwrap(),
-                    }
-                }
-                ServerCommand::ShowGroups { user_id } => {
-                    match get_user_groups(&conn, user_id) {
-                        Ok(groups) => tx_resp.send(ServerResponse::Groups(groups)).unwrap(),
-                        Err(e) => tx_resp.send(ServerResponse::Err(e)).unwrap(),
-                    }
-                }
-                ServerCommand::AddExpenses { user_id, group_id, amount, description, due_date } => {
-                    match add_expenses(&conn, user_id, group_id, amount, &description, &due_date) {
-                        Ok(_) => tx_resp.send(ServerResponse::Ok("Успешно добавихте разход!".into())).unwrap(),
-                        Err(e) => tx_resp.send(ServerResponse::Err(e)).unwrap(),
-                    }
-                }
-                ServerCommand::ShowDebtsOrCredits { user_id , is_debt} => {
-                    match get_user_debts_or_credits(&conn, user_id, is_debt) {
-                        Ok(expenses) => tx_resp.send(ServerResponse::Expenses(expenses)).unwrap(),
-                        Err(e) => tx_resp.send(ServerResponse::Err(e)).unwrap(),
-                    }
-                }
-                ServerCommand::PaymentConfirmation { user_id , debt_id } => {
-                    match payment_confirmation(&conn, user_id, debt_id) {
-                        Ok(string) => tx_resp.send(ServerResponse::Ok(string)).unwrap(),
-                        Err(e) => tx_resp.send(ServerResponse::Err(e)).unwrap(),
-                    }
-                }
-                ServerCommand::ShowNotification { user_id } => {
-                    match get_user_notifications(&conn, user_id) {
-                        Ok(notifications) => tx_resp.send(ServerResponse::Notifications(notifications)).unwrap(),
-                        Err(e) => tx_resp.send(ServerResponse::Err(e)).unwrap(),
-                    }
+                Err(RecvError) => {
+                    eprintln!("Command channel disconnected. Shutting down server loop.");
+                    break;
                 }
             }
         }
+
+
     });
 
     (tx_cmd, rx_resp)

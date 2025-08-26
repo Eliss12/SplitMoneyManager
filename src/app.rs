@@ -6,6 +6,7 @@ use egui::{Frame as UiFrame, RichText, Color32, Margin};
 use crate::group::Group;
 use crate::expenses::Expenses;
 use crate::notification::Notification;
+use std::sync::mpsc::TryRecvError;
 
 #[derive(Clone)]
 pub enum Screen {
@@ -137,38 +138,49 @@ impl App for MyApp {
 
 impl MyApp {
     fn process_backend_responses(&mut self, ctx: &egui::Context) {
-        while let Ok(response) = self.rx_resp.try_recv() {
-            match response {
-                ServerResponse::Ok(msg) => {
-                    self.success_message = Some(msg);
-                    self.success_time = Some(std::time::Instant::now());
-                    self.loading = false;
+        loop {
+            match self.rx_resp.try_recv() {
+                Ok(response) => {
+                    match response {
+                        ServerResponse::Ok(msg) => {
+                            self.success_message = Some(msg);
+                            self.success_time = Some(std::time::Instant::now());
+                            self.loading = false;
+                        }
+                        ServerResponse::Err(msg) => {
+                            self.error_message = Some(msg);
+                            self.error_time = Some(std::time::Instant::now());
+                            self.loading = false;
+                        }
+                        ServerResponse::User(user) => {
+                            self.screen = Screen::MainApp(user);
+                            self.loading = false;
+                        }
+                        ServerResponse::Users(users) => {
+                            self.search_results = users;
+                            self.loading = false;
+                        }
+                        ServerResponse::Groups(groups) => {
+                            self.my_groups = groups;
+                            self.loading = false;
+                        }
+                        ServerResponse::Expenses(expenses) => {
+                            self.my_debts_or_credits = expenses;
+                            self.loading = false;
+                        }
+                        ServerResponse::Notifications(notifications) => {
+                            self.notifications = notifications;
+                            self.loading = false;
+                        }
+                    }
                 }
-                ServerResponse::Err(msg) => {
-                    self.error_message = Some(msg);
-                    self.error_time = Some(std::time::Instant::now());
-                    self.loading = false;
+                Err(TryRecvError::Empty) => {
+                    break;
                 }
-                ServerResponse::User(user) => {
-                    self.screen = Screen::MainApp(user);
-                    self.loading = false;
+                Err(TryRecvError::Disconnected) => {
+                    self.error_message = Some("Server disconnected".to_string());
                 }
-                ServerResponse::Users(users) => {
-                    self.search_results = users;
-                    self.loading = false;
-                }
-                ServerResponse::Groups(groups) => {
-                    self.my_groups = groups;
-                    self.loading = false;
-                }
-                ServerResponse::Expenses(expenses) => {
-                    self.my_debts_or_credits = expenses;
-                    self.loading = false;
-                }
-                ServerResponse::Notifications(notifications) => {
-                    self.notifications = notifications;
-                    self.loading = false;
-                }
+
             }
             ctx.request_repaint();
         }
@@ -222,10 +234,12 @@ impl MyApp {
                     RichText::new("Вход").color(Color32::WHITE)
                 ).fill(Color32::from_rgb(30, 60, 150))
             ).clicked() {
-                let _ = self.tx_cmd.send(ServerCommand::Login {
+                if let Err(e) =  self.tx_cmd.send(ServerCommand::Login {
                     email: std::mem::take(&mut self.login_email),
                     password: std::mem::take(&mut self.login_password),
-                });
+                }) {
+                    self.error_message = Some(format!("Неуспешно изпращане: {}", e));
+                }
             }
 
             ui.add_space(5.0);
@@ -272,11 +286,13 @@ impl MyApp {
                     self.error_time = Some(std::time::Instant::now());
                 }
                 else {
-                    let _ = self.tx_cmd.send(ServerCommand::Register {
+                    if let Err(e) = self.tx_cmd.send(ServerCommand::Register {
                         username: std::mem::take(&mut self.reg_username),
                         email: std::mem::take(&mut self.reg_email),
                         password: std::mem::take(&mut self.reg_password),
-                    });
+                    }) {
+                        self.error_message = Some(format!("Неуспешно изпращане: {}", e));
+                    }
                     self.loading = true;
 
                 }
@@ -363,9 +379,11 @@ impl MyApp {
                     ui.add_space(20.0);
                     if !self.notification_loading {
                         self.notifications = Vec::new();
-                        let _ = self.tx_cmd.send(ServerCommand::ShowNotification {
+                        if let Err(e) = self.tx_cmd.send(ServerCommand::ShowNotification {
                             user_id,
-                        });
+                        }) {
+                            self.error_message = Some(format!("Неуспешно изпращане: {}", e));
+                        }
                         self.notification_loading = true;
                         self.loading = true;
                         self.process_backend_responses(ctx);
@@ -390,7 +408,9 @@ impl MyApp {
                             ).fill(Color32::from_rgb(30, 60, 150))
                         ).clicked() {
                             let owner_id = user_id;
-                            let _ = self.tx_cmd.send(ServerCommand::GetUser { owner_id });
+                            if let Err(e) = self.tx_cmd.send(ServerCommand::GetUser { owner_id }){
+                                self.error_message = Some(format!("Неуспешно изпращане: {}", e));
+                            }
                             self.process_backend_responses(ctx);
                             self.notification_loading = false;
                             self.loading = true;
@@ -429,9 +449,11 @@ impl MyApp {
                                     RichText::new("Търси").color(Color32::WHITE)
                                 ).fill(Color32::from_rgb(0, 102, 0))
                             ).clicked() {
-                                let _ = self.tx_cmd.send(ServerCommand::SearchUsers {
+                                if let Err(e) = self.tx_cmd.send(ServerCommand::SearchUsers {
                                     query: std::mem::take(&mut self.search_query),
-                                });
+                                }){
+                                    self.error_message = Some(format!("Неуспешно изпращане: {}", e));
+                                }
                                 self.loading = true;
                                 self.process_backend_responses(ctx);
                             }
@@ -475,11 +497,13 @@ impl MyApp {
                             ).fill(Color32::from_rgb(30, 60, 150))
                         ).clicked() {
                             if !self.group_name.trim().is_empty() && !self.selected_users.is_empty() {
-                                let _ = self.tx_cmd.send(ServerCommand::CreateGroup {
+                                if let Err(e) = self.tx_cmd.send(ServerCommand::CreateGroup {
                                     name: std::mem::take(&mut self.group_name),
                                     owner_id,
                                     members: std::mem::take(&mut self.selected_users),
-                                });
+                                }){
+                                    self.error_message = Some(format!("Неуспешно изпращане: {}", e));
+                                }
                                 self.loading = true;
                                 self.process_backend_responses(ctx);
                             }
@@ -497,7 +521,9 @@ impl MyApp {
                                 RichText::new("Назад").color(Color32::WHITE)
                             ).fill(Color32::from_rgb(0, 102, 0))
                         ).clicked() {
-                            let _ = self.tx_cmd.send(ServerCommand::GetUser { owner_id });
+                            if let Err(e) = self.tx_cmd.send(ServerCommand::GetUser { owner_id }){
+                                self.error_message = Some(format!("Неуспешно изпращане: {}", e));
+                            }
                             self.loading = true;
                             self.process_backend_responses(ctx);
                         }
@@ -525,9 +551,11 @@ impl MyApp {
 
                     if !self.group_loading {
                         self.my_groups = Vec::new();
-                        let _ = self.tx_cmd.send(ServerCommand::ShowGroups {
+                        if let Err(e) = self.tx_cmd.send(ServerCommand::ShowGroups {
                             user_id,
-                        });
+                        }) {
+                            self.error_message = Some(format!("Неуспешно изпращане: {}", e));
+                        }
                         self.group_loading = true;
                         self.loading = true;
                         self.process_backend_responses(ctx);
@@ -556,7 +584,9 @@ impl MyApp {
                             ).fill(Color32::from_rgb(0, 102, 0))
                         ).clicked() {
                             let owner_id = user_id;
-                            let _ = self.tx_cmd.send(ServerCommand::GetUser { owner_id });
+                            if let Err(e) = self.tx_cmd.send(ServerCommand::GetUser { owner_id }){
+                                self.error_message = Some(format!("Неуспешно изпращане: {}", e));
+                            }
                             self.group_loading = false;
                             self.loading = true;
                             self.process_backend_responses(ctx);
@@ -603,13 +633,15 @@ impl MyApp {
                     RichText::new("Добави разход").color(Color32::WHITE)
                 ).fill(Color32::from_rgb(30, 60, 150))
             ).clicked() {
-                let _ = self.tx_cmd.send(ServerCommand::AddExpenses {
+                if let Err(e) = self.tx_cmd.send(ServerCommand::AddExpenses {
                     user_id,
                     group_id,
                     amount: std::mem::take(&mut self.exp_amount),
                     description: std::mem::take(&mut self.exp_description),
                     due_date: std::mem::take(&mut self.exp_due_date),
-                });
+                }) {
+                    self.error_message = Some(format!("Неуспешно изпращане: {}", e));
+                }
                 self.loading = true;
             }
 
@@ -652,10 +684,12 @@ impl MyApp {
 
                     if !self.debts_or_credits_loading {
                         self.my_debts_or_credits = Vec::new();
-                        let _ = self.tx_cmd.send(ServerCommand::ShowDebtsOrCredits {
+                        if let Err(e) = self.tx_cmd.send(ServerCommand::ShowDebtsOrCredits {
                             user_id,
                             is_debt,
-                        });
+                        }){
+                            self.error_message = Some(format!("Неуспешно изпращане: {}", e));
+                        }
                         self.debts_or_credits_loading = true;
                         self.loading = true;
                         self.process_backend_responses(ctx);
@@ -679,10 +713,12 @@ impl MyApp {
                                 ).fill(Color32::from_rgb(30, 60, 150))
                             ).clicked() {
                                 let debt_id = debt_or_credit.id();
-                                let _ = self.tx_cmd.send(ServerCommand::PaymentConfirmation {
+                                if let Err(e) = self.tx_cmd.send(ServerCommand::PaymentConfirmation {
                                     user_id,
                                     debt_id,
-                                });
+                                }) {
+                                    self.error_message = Some(format!("Неуспешно изпращане: {}", e));
+                                }
                                 self.debts_or_credits_loading = false;
                             }
                         });
@@ -698,7 +734,9 @@ impl MyApp {
                             ).fill(Color32::from_rgb(0, 102, 0))
                         ).clicked() {
                             let owner_id = user_id;
-                            let _ = self.tx_cmd.send(ServerCommand::GetUser { owner_id });
+                            if let Err(e) = self.tx_cmd.send(ServerCommand::GetUser { owner_id }) {
+                                self.error_message = Some(format!("Неуспешно изпращане: {}", e));
+                            }
                             self.debts_or_credits_loading = false;
                             self.loading = true;
                             self.process_backend_responses(ctx);
