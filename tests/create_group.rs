@@ -42,7 +42,7 @@ fn create_group() {
     let groups: Vec<(i32, String, i32)> = stmt
         .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
         .unwrap()
-        .map(|r| r.unwrap())
+        .map(|e| e.unwrap())
         .collect();
 
     assert_eq!(groups.len(), 1);
@@ -55,7 +55,7 @@ fn create_group() {
     let saved_members: Vec<i32> = stmt
         .query_map(params![1], |row| row.get(0))
         .unwrap()
-        .map(|r| r.unwrap())
+        .map(|e| e.unwrap())
         .collect();
 
     assert_eq!(saved_members, &[2, 3, 4]);
