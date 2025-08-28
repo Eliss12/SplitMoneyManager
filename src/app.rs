@@ -20,7 +20,7 @@ pub enum Screen {
     MyNotifications(i32),
 }
 
-enum Action {
+pub enum Action {
     MainApp(User),
     Login,
     Register,
@@ -31,35 +31,104 @@ enum Action {
     MyNotifications(i32),
 }
 
-pub struct MyApp {
-    tx_cmd: Sender<ServerCommand>,
-    rx_resp: Receiver<ServerResponse>,
-    pub screen: Screen,
-
+pub struct LoginState {
     login_email: String,
     login_password: String,
+}
 
+impl Default for LoginState {
+    fn default() -> Self {
+        Self {
+            login_email: String::new(),
+            login_password: String::new(),
+        }
+    }
+}
+
+pub struct RegistrationState {
     reg_username: String,
     reg_email: String,
     reg_password: String,
+}
+impl Default for RegistrationState {
+    fn default() -> Self {
+        Self {
+            reg_username: String::new(),
+            reg_email: String::new(),
+            reg_password: String::new(),
+        }
 
+    }
+}
+
+pub struct GroupState {
     group_name: String,
     search_query: String,
     search_results: Vec<User>,
     selected_users: Vec<i32>,
-
+    group_loading: bool,
     my_groups: Vec<Group>,
+}
 
+impl Default for GroupState {
+    fn default() -> Self {
+        Self {
+            group_name: String::new(),
+            search_query: String::new(),
+            search_results: Vec::new(),
+            selected_users: Vec::new(),
+            group_loading: false,
+            my_groups: Vec::new(),
+        }
+    }
+}
+
+pub struct ExpensesState {
     exp_amount: f32,
     exp_description: String,
     exp_due_date: String,
-
     my_debts_or_credits: Vec<Expenses>,
-    notifications: Vec<Notification>,
-    loading: bool,
-    notification_loading: bool,
-    group_loading: bool,
     debts_or_credits_loading: bool,
+}
+
+impl Default for ExpensesState {
+    fn default() -> Self {
+        Self {
+            exp_amount: 0.0,
+            exp_description: String::new(),
+            exp_due_date: String::new(),
+            my_debts_or_credits: Vec::new(),
+            debts_or_credits_loading: false,
+        }
+    }
+}
+
+pub struct NotificationState {
+    notifications: Vec<Notification>,
+    notification_loading: bool,
+}
+
+impl Default for NotificationState {
+    fn default() -> Self {
+        Self {
+            notifications: Vec::new(),
+            notification_loading: false,
+        }
+    }
+}
+
+
+
+pub struct MyApp {
+    tx_cmd: Sender<ServerCommand>,
+    rx_resp: Receiver<ServerResponse>,
+    pub screen: Screen,
+    login: LoginState,
+    registration: RegistrationState,
+    group_state: GroupState,
+    expenses: ExpensesState,
+    notifications_state: NotificationState,
+    loading: bool,
     success_message: Option<String>,
     success_time: Option<std::time::Instant>,
     error_message: Option<String>,
@@ -74,25 +143,12 @@ impl Default for MyApp {
             tx_cmd,
             rx_resp,
             screen: Screen::Login,
-            login_email: String::new(),
-            login_password: String::new(),
-            reg_username: String::new(),
-            reg_email: String::new(),
-            reg_password: String::new(),
-            group_name: String::new(),
-            search_query: String::new(),
-            search_results: Vec::new(),
-            selected_users: Vec::new(),
-            my_groups: Vec::new(),
-            exp_amount: 0.0,
-            exp_description: String::new(),
-            exp_due_date: String::new(),
-            my_debts_or_credits: Vec::new(),
-            notifications: Vec::new(),
+            login: LoginState::default(),
+            registration: RegistrationState::default(),
+            group_state: GroupState::default(),
+            expenses: ExpensesState::default(),
+            notifications_state: NotificationState::default(),
             loading: false,
-            notification_loading: false,
-            group_loading: false,
-            debts_or_credits_loading: false,
             success_message: None,
             success_time: None,
             error_message: None,
@@ -157,19 +213,19 @@ impl MyApp {
                             self.loading = false;
                         }
                         ServerResponse::Users(users) => {
-                            self.search_results = users;
+                            self.group_state.search_results = users;
                             self.loading = false;
                         }
                         ServerResponse::Groups(groups) => {
-                            self.my_groups = groups;
+                            self.group_state.my_groups = groups;
                             self.loading = false;
                         }
                         ServerResponse::Expenses(expenses) => {
-                            self.my_debts_or_credits = expenses;
+                            self.expenses.my_debts_or_credits = expenses;
                             self.loading = false;
                         }
                         ServerResponse::Notifications(notifications) => {
-                            self.notifications = notifications;
+                            self.notifications_state.notifications = notifications;
                             self.loading = false;
                         }
                     }
@@ -220,11 +276,11 @@ impl MyApp {
             ui.heading("Вход");
 
             ui.label("Имейл:");
-            ui.text_edit_singleline(&mut self.login_email);
+            ui.text_edit_singleline(&mut self.login.login_email);
 
             ui.label("Парола:");
             ui.add(
-                egui::TextEdit::singleline(&mut self.login_password)
+                egui::TextEdit::singleline(&mut self.login.login_password)
                     .password(true)
             );
 
@@ -236,8 +292,8 @@ impl MyApp {
                     ).fill(Color32::from_rgb(30, 60, 150))
                 ).clicked() {
                     if let Err(e) = self.tx_cmd.send(ServerCommand::Login {
-                        email: std::mem::take(&mut self.login_email),
-                        password: std::mem::take(&mut self.login_password),
+                        email: std::mem::take(&mut self.login.login_email),
+                        password: std::mem::take(&mut self.login.login_password),
                     }) {
                         self.error_message = Some(format!("Неуспешно изпращане: {}", e));
                     }
@@ -270,14 +326,14 @@ impl MyApp {
             ui.heading("Регистрация");
 
             ui.label("Потребителско име:");
-            ui.text_edit_singleline(&mut self.reg_username);
+            ui.text_edit_singleline(&mut self.registration.reg_username);
 
             ui.label("Имейл:");
-            ui.text_edit_singleline(&mut self.reg_email);
+            ui.text_edit_singleline(&mut self.registration.reg_email);
 
             ui.label("Парола:");
             ui.add(
-                egui::TextEdit::singleline(&mut self.reg_password)
+                egui::TextEdit::singleline(&mut self.registration.reg_password)
                     .password(true)
             );
 
@@ -288,16 +344,16 @@ impl MyApp {
                         RichText::new("Създай акаунт").color(Color32::WHITE)
                     ).fill(Color32::from_rgb(30, 60, 150))
                 ).clicked() {
-                    if self.reg_email.trim().is_empty() || self.reg_password.trim().is_empty() || self.reg_username.trim().is_empty() {
+                    if self.registration.reg_email.trim().is_empty() || self.registration.reg_password.trim().is_empty() || self.registration.reg_username.trim().is_empty() {
                         self.error_message = Some(
                             "Моля попълнете всички полета.".to_string(),
                         );
                         self.error_time = Some(std::time::Instant::now());
                     } else {
                         if let Err(e) = self.tx_cmd.send(ServerCommand::Register {
-                            username: std::mem::take(&mut self.reg_username),
-                            email: std::mem::take(&mut self.reg_email),
-                            password: std::mem::take(&mut self.reg_password),
+                            username: std::mem::take(&mut self.registration.reg_username),
+                            email: std::mem::take(&mut self.registration.reg_email),
+                            password: std::mem::take(&mut self.registration.reg_password),
                         }) {
                             self.error_message = Some(format!("Неуспешно изпращане: {}", e));
                         }
@@ -385,19 +441,19 @@ impl MyApp {
                 .show(ui, |ui| {
                     ui.heading("Известия");
                     ui.add_space(20.0);
-                    if !self.notification_loading {
-                        self.notifications = Vec::new();
+                    if !self.notifications_state.notification_loading {
+                        self.notifications_state.notifications = Vec::new();
                         if let Err(e) = self.tx_cmd.send(ServerCommand::ShowNotification {
                             user_id,
                         }) {
                             self.error_message = Some(format!("Неуспешно изпращане: {}", e));
                         }
-                        self.notification_loading = true;
+                        self.notifications_state.notification_loading = true;
                         self.loading = true;
                         self.process_backend_responses(ctx);
                     }
 
-                    for notification in &self.notifications {
+                    for notification in &self.notifications_state.notifications {
                         UiFrame::group(ui.style())
                             .fill(Color32::from_rgb(0, 102, 204))
                             .rounding(6.0)
@@ -420,7 +476,7 @@ impl MyApp {
                                 self.error_message = Some(format!("Неуспешно изпращане: {}", e));
                             }
                             self.process_backend_responses(ctx);
-                            self.notification_loading = false;
+                            self.notifications_state.notification_loading = false;
                             self.loading = true;
                         }
                     });
@@ -445,20 +501,20 @@ impl MyApp {
                     ui.add_enabled_ui(!self.loading, |ui| {
                         ui.horizontal(|ui| {
                             ui.label("Име на групата:");
-                            ui.text_edit_singleline(&mut self.group_name);
+                            ui.text_edit_singleline(&mut self.group_state.group_name);
                         });
 
                         ui.separator();
 
                         ui.horizontal(|ui| {
-                            ui.text_edit_singleline(&mut self.search_query);
+                            ui.text_edit_singleline(&mut self.group_state.search_query);
                             if ui.add(
                                 egui::Button::new(
                                     RichText::new("Търси").color(Color32::WHITE)
                                 ).fill(Color32::from_rgb(0, 102, 0))
                             ).clicked() {
                                 if let Err(e) = self.tx_cmd.send(ServerCommand::SearchUsers {
-                                    query: std::mem::take(&mut self.search_query),
+                                    query: std::mem::take(&mut self.group_state.search_query),
                                 }){
                                     self.error_message = Some(format!("Неуспешно изпращане: {}", e));
                                 }
@@ -469,19 +525,19 @@ impl MyApp {
 
                         ui.separator();
 
-                        for user in &self.search_results {
-                            let mut checked = self.selected_users.contains(&user.id());
+                        for user in &self.group_state.search_results {
+                            let mut checked = self.group_state.selected_users.contains(&user.id());
 
                             ui.horizontal(|ui| {
 
                                 if ui.checkbox(&mut checked, "").changed() {
                                     if checked {
-                                        if !self.selected_users.contains(&user.id()) {
-                                            self.selected_users.push(user.id());
+                                        if !self.group_state.selected_users.contains(&user.id()) {
+                                            self.group_state.selected_users.push(user.id());
                                         }
                                     }
                                     else {
-                                        self.selected_users.retain(|&id| id != user.id());
+                                        self.group_state.selected_users.retain(|&id| id != user.id());
                                     }
                                 }
 
@@ -493,8 +549,8 @@ impl MyApp {
                             });
                         }
 
-                        if !self.selected_users.contains(&owner_id) {
-                            self.selected_users.push(owner_id);
+                        if !self.group_state.selected_users.contains(&owner_id) {
+                            self.group_state.selected_users.push(owner_id);
                         }
 
                         ui.separator();
@@ -504,11 +560,11 @@ impl MyApp {
                                 RichText::new("Създай групата").color(Color32::WHITE)
                             ).fill(Color32::from_rgb(30, 60, 150))
                         ).clicked() {
-                            if !self.group_name.trim().is_empty() && !self.selected_users.is_empty() {
+                            if !self.group_state.group_name.trim().is_empty() && !self.group_state.selected_users.is_empty() {
                                 if let Err(e) = self.tx_cmd.send(ServerCommand::CreateGroup {
-                                    name: std::mem::take(&mut self.group_name),
+                                    name: std::mem::take(&mut self.group_state.group_name),
                                     owner_id,
-                                    members: std::mem::take(&mut self.selected_users),
+                                    members: std::mem::take(&mut self.group_state.selected_users),
                                 }){
                                     self.error_message = Some(format!("Неуспешно изпращане: {}", e));
                                 }
@@ -557,19 +613,19 @@ impl MyApp {
                     ui.heading("Моите групи");
                     ui.add_space(10.0);
 
-                    if !self.group_loading {
-                        self.my_groups = Vec::new();
+                    if !self.group_state.group_loading {
+                        self.group_state.my_groups = Vec::new();
                         if let Err(e) = self.tx_cmd.send(ServerCommand::ShowGroups {
                             user_id,
                         }) {
                             self.error_message = Some(format!("Неуспешно изпращане: {}", e));
                         }
-                        self.group_loading = true;
+                        self.group_state.group_loading = true;
                         self.loading = true;
                         self.process_backend_responses(ctx);
                     }
 
-                    for group in &self.my_groups {
+                    for group in &self.group_state.my_groups {
                         ui.horizontal(|ui| {
                             ui.label(format!("{}", group.groupname()));
                             if ui.add(
@@ -595,7 +651,7 @@ impl MyApp {
                             if let Err(e) = self.tx_cmd.send(ServerCommand::GetUser { owner_id }){
                                 self.error_message = Some(format!("Неуспешно изпращане: {}", e));
                             }
-                            self.group_loading = false;
+                            self.group_state.group_loading = false;
                             self.loading = true;
                             self.process_backend_responses(ctx);
                         }
@@ -617,7 +673,7 @@ impl MyApp {
             ui.heading("Добавяне на разход");
 
             ui.add_enabled_ui(!self.loading, |ui| {
-                let mut amount_str = self.exp_amount.to_string();
+                let mut amount_str = self.expenses.exp_amount.to_string();
                 ui.label("Сума:");
                 ui.text_edit_singleline(&mut amount_str);
                 if amount_str.is_empty() {
@@ -627,14 +683,14 @@ impl MyApp {
                     self.error_time = Some(std::time::Instant::now());
                 }
                 if let Ok(parsed) = amount_str.parse::<f32>() {
-                    self.exp_amount = parsed;
+                    self.expenses.exp_amount = parsed;
                 }
 
                 ui.label("Описание:");
-                ui.text_edit_singleline(&mut self.exp_description);
+                ui.text_edit_singleline(&mut self.expenses.exp_description);
 
                 ui.label("Крайна дата за изплащане:");
-                ui.text_edit_singleline(&mut self.exp_due_date);
+                ui.text_edit_singleline(&mut self.expenses.exp_due_date);
 
                 ui.add_space(10.0);
 
@@ -647,9 +703,9 @@ impl MyApp {
                     if let Err(e) = self.tx_cmd.send(ServerCommand::AddExpenses {
                         user_id,
                         group_id,
-                        amount: std::mem::take(&mut self.exp_amount),
-                        description: std::mem::take(&mut self.exp_description),
-                        due_date: std::mem::take(&mut self.exp_due_date),
+                        amount: std::mem::take(&mut self.expenses.exp_amount),
+                        description: std::mem::take(&mut self.expenses.exp_description),
+                        due_date: std::mem::take(&mut self.expenses.exp_due_date),
                     }) {
                         self.error_message = Some(format!("Неуспешно изпращане: {}", e));
                     }
@@ -694,20 +750,20 @@ impl MyApp {
                     }
                     ui.heading(heading);
 
-                    if !self.debts_or_credits_loading {
-                        self.my_debts_or_credits = Vec::new();
+                    if !self.expenses.debts_or_credits_loading {
+                        self.expenses.my_debts_or_credits = Vec::new();
                         if let Err(e) = self.tx_cmd.send(ServerCommand::ShowDebtsOrCredits {
                             user_id,
                             is_debt,
                         }){
                             self.error_message = Some(format!("Неуспешно изпращане: {}", e));
                         }
-                        self.debts_or_credits_loading = true;
+                        self.expenses.debts_or_credits_loading = true;
                         self.loading = true;
                         self.process_backend_responses(ctx);
                     }
 
-                    for debt_or_credit in &self.my_debts_or_credits {
+                    for debt_or_credit in &self.expenses.my_debts_or_credits {
                         ui.horizontal(|ui| {
                             ui.label(format!(
                                 "{}: {}\nСума: {:.2} лв.\nОписание: {}\nКрайна дата: {}\nГрупа: {}",
@@ -731,7 +787,7 @@ impl MyApp {
                                 }) {
                                     self.error_message = Some(format!("Неуспешно изпращане: {}", e));
                                 }
-                                self.debts_or_credits_loading = false;
+                                self.expenses.debts_or_credits_loading = false;
                             }
                         });
 
@@ -749,7 +805,7 @@ impl MyApp {
                             if let Err(e) = self.tx_cmd.send(ServerCommand::GetUser { owner_id }) {
                                 self.error_message = Some(format!("Неуспешно изпращане: {}", e));
                             }
-                            self.debts_or_credits_loading = false;
+                            self.expenses.debts_or_credits_loading = false;
                             self.loading = true;
                             self.process_backend_responses(ctx);
                         }
