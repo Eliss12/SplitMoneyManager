@@ -229,29 +229,37 @@ impl MyApp {
             );
 
             ui.add_space(10.0);
-            if ui.add(
-                egui::Button::new(
-                    RichText::new("Вход").color(Color32::WHITE)
-                ).fill(Color32::from_rgb(30, 60, 150))
-            ).clicked() {
-                if let Err(e) =  self.tx_cmd.send(ServerCommand::Login {
-                    email: std::mem::take(&mut self.login_email),
-                    password: std::mem::take(&mut self.login_password),
-                }) {
-                    self.error_message = Some(format!("Неуспешно изпращане: {}", e));
+            ui.add_enabled_ui(!self.loading, |ui| {
+                if ui.add(
+                    egui::Button::new(
+                        RichText::new("Вход").color(Color32::WHITE)
+                    ).fill(Color32::from_rgb(30, 60, 150))
+                ).clicked() {
+                    if let Err(e) = self.tx_cmd.send(ServerCommand::Login {
+                        email: std::mem::take(&mut self.login_email),
+                        password: std::mem::take(&mut self.login_password),
+                    }) {
+                        self.error_message = Some(format!("Неуспешно изпращане: {}", e));
+                    }
+                    self.loading = true;
                 }
+
+                ui.add_space(5.0);
+                if ui.add(
+                    egui::Button::new(
+                        RichText::new("Нямаш акаунт? Регистрирай се").color(Color32::WHITE)
+                    ).fill(Color32::from_rgb(0, 102, 0))
+                ).clicked() {
+                    self.screen = Screen::Register;
+                }
+
+                self.process_backend_responses(ctx);
+            });
+            if self.loading {
+                ui.separator();
+                ui.label("Моля изчакайте...");
             }
 
-            ui.add_space(5.0);
-            if ui.add(
-                egui::Button::new(
-                    RichText::new("Нямаш акаунт? Регистрирай се").color(Color32::WHITE)
-                ).fill(Color32::from_rgb(0, 102, 0))
-            ).clicked() {
-                self.screen = Screen::Register;
-            }
-
-            self.process_backend_responses(ctx);
             self.update_messages(ctx);
             self.show_messages(ui);
         });
@@ -274,40 +282,40 @@ impl MyApp {
             );
 
             ui.add_space(10.0);
-            if ui.add(
-                egui::Button::new(
-                    RichText::new("Създай акаунт").color(Color32::WHITE)
-                ).fill(Color32::from_rgb(30, 60, 150))
-            ).clicked() {
-                if self.reg_email.trim().is_empty() || self.reg_password.trim().is_empty() || self.reg_username.trim().is_empty() {
-                    self.error_message = Some(
-                        "Моля попълнете всички полета.".to_string(),
-                    );
-                    self.error_time = Some(std::time::Instant::now());
-                }
-                else {
-                    if let Err(e) = self.tx_cmd.send(ServerCommand::Register {
-                        username: std::mem::take(&mut self.reg_username),
-                        email: std::mem::take(&mut self.reg_email),
-                        password: std::mem::take(&mut self.reg_password),
-                    }) {
-                        self.error_message = Some(format!("Неуспешно изпращане: {}", e));
+            ui.add_enabled_ui(!self.loading, |ui| {
+                if ui.add(
+                    egui::Button::new(
+                        RichText::new("Създай акаунт").color(Color32::WHITE)
+                    ).fill(Color32::from_rgb(30, 60, 150))
+                ).clicked() {
+                    if self.reg_email.trim().is_empty() || self.reg_password.trim().is_empty() || self.reg_username.trim().is_empty() {
+                        self.error_message = Some(
+                            "Моля попълнете всички полета.".to_string(),
+                        );
+                        self.error_time = Some(std::time::Instant::now());
+                    } else {
+                        if let Err(e) = self.tx_cmd.send(ServerCommand::Register {
+                            username: std::mem::take(&mut self.reg_username),
+                            email: std::mem::take(&mut self.reg_email),
+                            password: std::mem::take(&mut self.reg_password),
+                        }) {
+                            self.error_message = Some(format!("Неуспешно изпращане: {}", e));
+                        }
+                        self.loading = true;
                     }
-                    self.loading = true;
-
                 }
-            }
 
-            ui.add_space(5.0);
-            if ui.add(
-                egui::Button::new(
-                    RichText::new("Вече имаш акаунт? Влез").color(Color32::WHITE)
-                ).fill(Color32::from_rgb(0, 102, 0))
-            ).clicked() {
-                self.screen = Screen::Login;
-            }
+                ui.add_space(5.0);
+                if ui.add(
+                    egui::Button::new(
+                        RichText::new("Вече имаш акаунт? Влез").color(Color32::WHITE)
+                    ).fill(Color32::from_rgb(0, 102, 0))
+                ).clicked() {
+                    self.screen = Screen::Login;
+                }
 
-            self.process_backend_responses(ctx);
+                self.process_backend_responses(ctx);
+            });
 
             if self.loading {
                 ui.separator();
@@ -608,53 +616,57 @@ impl MyApp {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading("Добавяне на разход");
 
-            let mut amount_str = self.exp_amount.to_string();
-            ui.label("Сума:");
-            ui.text_edit_singleline(&mut amount_str);
-            if amount_str.is_empty() {
-                self.error_message = Some(
-                    "Моля въведете сума.".to_string(),
-                );
-                self.error_time = Some(std::time::Instant::now());
-            }
-            if let Ok(parsed) = amount_str.parse::<f32>() {
-                self.exp_amount = parsed;
-            }
-
-            ui.label("Описание:");
-            ui.text_edit_singleline(&mut self.exp_description);
-
-            ui.label("Крайна дата за изплащане:");
-            ui.text_edit_singleline(&mut self.exp_due_date);
-
-            ui.add_space(10.0);
-            if ui.add(
-                egui::Button::new(
-                    RichText::new("Добави разход").color(Color32::WHITE)
-                ).fill(Color32::from_rgb(30, 60, 150))
-            ).clicked() {
-                if let Err(e) = self.tx_cmd.send(ServerCommand::AddExpenses {
-                    user_id,
-                    group_id,
-                    amount: std::mem::take(&mut self.exp_amount),
-                    description: std::mem::take(&mut self.exp_description),
-                    due_date: std::mem::take(&mut self.exp_due_date),
-                }) {
-                    self.error_message = Some(format!("Неуспешно изпращане: {}", e));
+            ui.add_enabled_ui(!self.loading, |ui| {
+                let mut amount_str = self.exp_amount.to_string();
+                ui.label("Сума:");
+                ui.text_edit_singleline(&mut amount_str);
+                if amount_str.is_empty() {
+                    self.error_message = Some(
+                        "Моля въведете сума.".to_string(),
+                    );
+                    self.error_time = Some(std::time::Instant::now());
                 }
-                self.loading = true;
-            }
+                if let Ok(parsed) = amount_str.parse::<f32>() {
+                    self.exp_amount = parsed;
+                }
 
-            ui.add_space(5.0);
-            if ui.add(
-                egui::Button::new(
-                    RichText::new("Назад").color(Color32::WHITE)
-                ).fill(Color32::from_rgb(0, 102, 0))
-            ).clicked() {
-                self.screen = Screen::MyGroups(user_id);
-            }
+                ui.label("Описание:");
+                ui.text_edit_singleline(&mut self.exp_description);
 
-            self.process_backend_responses(ctx);
+                ui.label("Крайна дата за изплащане:");
+                ui.text_edit_singleline(&mut self.exp_due_date);
+
+                ui.add_space(10.0);
+
+
+                if ui.add(
+                    egui::Button::new(
+                        RichText::new("Добави разход").color(Color32::WHITE)
+                    ).fill(Color32::from_rgb(30, 60, 150))
+                ).clicked() {
+                    if let Err(e) = self.tx_cmd.send(ServerCommand::AddExpenses {
+                        user_id,
+                        group_id,
+                        amount: std::mem::take(&mut self.exp_amount),
+                        description: std::mem::take(&mut self.exp_description),
+                        due_date: std::mem::take(&mut self.exp_due_date),
+                    }) {
+                        self.error_message = Some(format!("Неуспешно изпращане: {}", e));
+                    }
+                    self.loading = true;
+                }
+
+                ui.add_space(5.0);
+                if ui.add(
+                    egui::Button::new(
+                        RichText::new("Назад").color(Color32::WHITE)
+                    ).fill(Color32::from_rgb(0, 102, 0))
+                ).clicked() {
+                    self.screen = Screen::MyGroups(user_id);
+                }
+
+                self.process_backend_responses(ctx);
+            });
 
             if self.loading {
                 ui.separator();
