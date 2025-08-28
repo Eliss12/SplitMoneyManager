@@ -199,7 +199,7 @@ pub fn get_user_by_id(conn: &Connection, user_id: i32) -> std::result::Result<Us
     let mut rows = stmt.query(params![user_id]).map_err(|e| e.to_string())?;
 
     if let Some(row) = rows.next().map_err(|e| e.to_string())? {
-        Ok(User::from_id (
+        Ok(User::new (
             row.get(0).unwrap(),
             row.get(1).unwrap(),
             row.get(2).unwrap(),

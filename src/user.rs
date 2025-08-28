@@ -26,16 +26,6 @@ impl User {
         }
     }
 
-    pub fn from_id(id: i32, username: String, email: String) -> Self {
-        Self{
-            id,
-            username,
-            email,
-            loyal_payer: false,
-        }
-    }
-
-
     pub fn id(&self) -> i32 {
         self.id
     }
