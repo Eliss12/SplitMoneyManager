@@ -484,7 +484,7 @@ pub fn payment_confirmation(conn: &Connection, user_id: i32, debt_id: i32) -> st
                 ).map_err(|e| e.to_string())?;
             }
         }
-        else {
+        else if on_time == 0 {
 
             conn.execute(
                 "UPDATE users
@@ -513,6 +513,8 @@ pub fn get_user_notifications(conn: &Connection, user_id: i32) -> Result<Vec<Not
          FROM debts
          WHERE from_id = ?1
            AND settled = 0
+           AND due_date IS NOT NULL
+           AND due_date != ''
            AND due_date < date('now')"
     ).map_err(|e| e.to_string())?;
 
